@@ -1,0 +1,184 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // ===============================================================
+    // Assumed Data Model
+    // ===============================================================
+    //
+    // Collection: users
+    // Fields: id, name, email, phone, role, language, createdAt
+    //
+    // Collection: customerProfiles
+    // Fields: userId, preferredAddresses, bookingHistory, notes
+    //
+    // Collection: keeperProfiles
+    // Fields: userId, vehicleType, capacity, status, liveLocation, rating
+    //
+    // Collection: bookings
+    // Fields: id, bookingCode, customerId, pickupLocation, dropoffLocation, pickupDateTime, deliveryDateTime, numberOfBags, bagTypes, flightNumber, cruiseReference, paymentStatus, bookingStatus, assignedKeeperId, totalPrice, currency, notes, createdAt
+    //
+    // Collection: bookings/{bookingId}/bags
+    // Fields: id, bookingId, sealCode, status, photoPickup, photoDelivery, storageLocation, timestamps
+    //
+    // Collection: bookings/{bookingId}/trackingEvents
+    // Fields: id, bookingId, bagId, status, location, timestamp, createdBy
+    //
+    // Collection: payments
+    // Fields: id, bookingId, stripePaymentIntentId, amount, currency, status, refundStatus
+    //
+    // Collection: incidents
+    // Fields: id, bookingId, keeperId, type, description, photos, status, createdAt
+    //
+    // Collection: zones
+    // Fields: id, name, coveragePolygon, pricingRules
+    //
+    // Collection: promoCodes
+    // Fields: id, code, type, value, expiryDate, usageLimit
+    //
+    // ===============================================================
+
+    // ===============================================================
+    // Helper Functions
+    // ===============================================================
+    
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function isAdmin() {
+      return isAuthenticated() &&
+        (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in ['admin', 'superadmin'] ||
+          (request.auth.token.email == "luis@azulclarito.mx" && request.auth.token.email_verified == true));
+    }
+
+    function hasRequiredFields(fields) {
+      return request.resource.data.keys().hasAll(fields);
+    }
+
+    function hasOnlyAllowedFields(fields) {
+      return request.resource.data.keys().hasOnly(fields);
+    }
+
+    function isValidEmail(email) {
+      return email is string && email.matches("^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$");
+    }
+
+    function isValidDateString(dateStr) {
+      return dateStr is string && dateStr.matches("^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}.*Z?$");
+    }
+
+    // ===============================================================
+    // Domain Validators
+    // ===============================================================
+
+    function isValidUser(data) {
+      return hasRequiredFields(['id', 'name', 'email', 'role']) &&
+             data.id is string && data.name is string && data.name.size() > 0 &&
+             isValidEmail(data.email) &&
+             data.role in ['customer', 'keeper', 'admin', 'superadmin'];
+    }
+
+    function isValidBooking(data) {
+      return hasRequiredFields(['id', 'bookingCode', 'customerId', 'pickupLocation', 'dropoffLocation', 'pickupDateTime', 'numberOfBags', 'totalPrice', 'bookingStatus']) &&
+             data.id is string && data.bookingCode is string &&
+             data.customerId is string &&
+             data.numberOfBags is int && data.numberOfBags > 0 &&
+             data.totalPrice is number && data.totalPrice >= 0 &&
+             data.bookingStatus in ['created', 'assigned', 'on_the_way', 'picked_up', 'in_transit', 'in_storage', 'out_for_delivery', 'delivered', 'incident', 'cancelled'];
+    }
+
+    // ===============================================================
+    // Rules
+    // ===============================================================
+
+    // Default deny
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    match /users/{userId} {
+      allow read: if isOwner(userId) || isAdmin();
+      allow create: if isAuthenticated() && isValidUser(request.resource.data) && (isOwner(userId) && request.resource.data.role == 'customer' || isAdmin());
+      allow update: if isAuthenticated() && isValidUser(request.resource.data) && (isOwner(userId) && request.resource.data.role == resource.data.role || isAdmin());
+    }
+
+    match /customerProfiles/{userId} {
+      allow read: if isOwner(userId) || isAdmin();
+      allow write: if isOwner(userId) || isAdmin();
+    }
+
+    match /keeperProfiles/{userId} {
+      allow read: if isAuthenticated(); // Customers need to see keeper info
+      allow write: if isOwner(userId) || isAdmin();
+    }
+
+    match /bookings/{bookingId} {
+      allow read: if isAuthenticated() && (
+        request.auth.uid == resource.data.customerId || 
+        request.auth.uid == resource.data.assignedKeeperId || 
+        isAdmin()
+      );
+      allow create: if isAuthenticated() && isValidBooking(request.resource.data) && (
+        request.auth.uid == request.resource.data.customerId || 
+        isAdmin()
+      );
+      allow update: if isAuthenticated() && isValidBooking(request.resource.data) && (
+        request.auth.uid == resource.data.customerId || 
+        request.auth.uid == resource.data.assignedKeeperId || 
+        isAdmin()
+      );
+    }
+
+    match /bookings/{bookingId}/bags/{bagId} {
+      allow read, write: if isAuthenticated() && (
+        get(/databases/$(database)/documents/bookings/$(bookingId)).data.customerId == request.auth.uid ||
+        get(/databases/$(database)/documents/bookings/$(bookingId)).data.assignedKeeperId == request.auth.uid ||
+        isAdmin()
+      );
+    }
+
+    match /bookings/{bookingId}/trackingEvents/{eventId} {
+      allow read: if isAuthenticated() && (
+        get(/databases/$(database)/documents/bookings/$(bookingId)).data.customerId == request.auth.uid ||
+        get(/databases/$(database)/documents/bookings/$(bookingId)).data.assignedKeeperId == request.auth.uid ||
+        isAdmin()
+      );
+      allow create: if isAuthenticated() && (
+        get(/databases/$(database)/documents/bookings/$(bookingId)).data.assignedKeeperId == request.auth.uid ||
+        isAdmin()
+      );
+    }
+
+    match /payments/{paymentId} {
+      allow read: if isAuthenticated() && (
+        get(/databases/$(database)/documents/bookings/$(resource.data.bookingId)).data.customerId == request.auth.uid ||
+        isAdmin()
+      );
+      allow write: if isAdmin();
+    }
+
+    match /incidents/{incidentId} {
+      allow read: if isAuthenticated() && (
+        get(/databases/$(database)/documents/bookings/$(resource.data.bookingId)).data.customerId == request.auth.uid ||
+        get(/databases/$(database)/documents/bookings/$(resource.data.bookingId)).data.assignedKeeperId == request.auth.uid ||
+        isAdmin()
+      );
+      allow create: if isAuthenticated();
+      allow update: if isAdmin();
+    }
+
+    match /zones/{zoneId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    match /promoCodes/{codeId} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin();
+    }
+  }
+}

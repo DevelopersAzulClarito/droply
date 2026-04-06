@@ -1,0 +1,208 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "Base user entity for authentication and basic profile info.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "email": { "type": "string", "format": "email" },
+        "phone": { "type": "string" },
+        "role": { "type": "string", "enum": ["customer", "keeper", "admin", "superadmin"] },
+        "language": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "name", "email", "role"]
+    },
+    "CustomerProfile": {
+      "title": "Customer Profile",
+      "description": "Extended profile for customers.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "preferredAddresses": { "type": "array", "items": { "type": "string" } },
+        "bookingHistory": { "type": "array", "items": { "type": "string" } },
+        "notes": { "type": "string" }
+      },
+      "required": ["userId"]
+    },
+    "KeeperProfile": {
+      "title": "Keeper Profile",
+      "description": "Extended profile for keepers/drivers.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "vehicleType": { "type": "string" },
+        "capacity": { "type": "integer" },
+        "status": { "type": "string", "enum": ["active", "inactive", "busy"] },
+        "liveLocation": {
+          "type": "object",
+          "properties": {
+            "lat": { "type": "number" },
+            "lng": { "type": "number" }
+          }
+        },
+        "rating": { "type": "number" }
+      },
+      "required": ["userId", "status"]
+    },
+    "Booking": {
+      "title": "Booking",
+      "description": "Core entity for luggage transport/storage reservations.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "bookingCode": { "type": "string" },
+        "customerId": { "type": "string" },
+        "serviceType": { "type": "string" },
+        "pickupLocation": { "type": "object", "properties": { "address": { "type": "string" }, "lat": { "type": "number" }, "lng": { "type": "number" } } },
+        "dropoffLocation": { "type": "object", "properties": { "address": { "type": "string" }, "lat": { "type": "number" }, "lng": { "type": "number" } } },
+        "pickupDateTime": { "type": "string", "format": "date-time" },
+        "deliveryDateTime": { "type": "string", "format": "date-time" },
+        "numberOfBags": { "type": "integer" },
+        "bagTypes": { "type": "array", "items": { "type": "string" } },
+        "flightNumber": { "type": "string" },
+        "cruiseReference": { "type": "string" },
+        "paymentStatus": { "type": "string", "enum": ["pending", "paid", "failed", "refunded"] },
+        "bookingStatus": { "type": "string", "enum": ["created", "assigned", "on_the_way", "picked_up", "in_transit", "in_storage", "out_for_delivery", "delivered", "incident", "cancelled"] },
+        "assignedKeeperId": { "type": "string" },
+        "totalPrice": { "type": "number" },
+        "currency": { "type": "string" },
+        "notes": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "bookingCode", "customerId", "pickupLocation", "dropoffLocation", "pickupDateTime", "numberOfBags", "totalPrice", "bookingStatus"]
+    },
+    "Bag": {
+      "title": "Bag",
+      "description": "Individual luggage piece details.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "bookingId": { "type": "string" },
+        "sealCode": { "type": "string" },
+        "status": { "type": "string" },
+        "photoPickup": { "type": "string" },
+        "photoDelivery": { "type": "string" },
+        "storageLocation": { "type": "string" },
+        "timestamps": { "type": "object" }
+      },
+      "required": ["id", "bookingId", "status"]
+    },
+    "Payment": {
+      "title": "Payment",
+      "description": "Payment transaction details.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "bookingId": { "type": "string" },
+        "stripePaymentIntentId": { "type": "string" },
+        "amount": { "type": "number" },
+        "currency": { "type": "string" },
+        "status": { "type": "string" },
+        "refundStatus": { "type": "string" }
+      },
+      "required": ["id", "bookingId", "amount", "status"]
+    },
+    "Incident": {
+      "title": "Incident",
+      "description": "Reported problems during service.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "bookingId": { "type": "string" },
+        "keeperId": { "type": "string" },
+        "type": { "type": "string" },
+        "description": { "type": "string" },
+        "photos": { "type": "array", "items": { "type": "string" } },
+        "status": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "bookingId", "type", "description", "status"]
+    },
+    "TrackingEvent": {
+      "title": "Tracking Event",
+      "description": "Log of status changes for real-time tracking.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "bookingId": { "type": "string" },
+        "bagId": { "type": "string" },
+        "status": { "type": "string" },
+        "location": { "type": "object" },
+        "timestamp": { "type": "string", "format": "date-time" },
+        "createdBy": { "type": "string" }
+      },
+      "required": ["id", "bookingId", "status", "timestamp"]
+    },
+    "Zone": {
+      "title": "Zone",
+      "description": "Geographical coverage zones and pricing.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "coveragePolygon": { "type": "array" },
+        "pricingRules": { "type": "object" }
+      },
+      "required": ["id", "name"]
+    },
+    "PromoCode": {
+      "title": "Promo Code",
+      "description": "Discount codes.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "code": { "type": "string" },
+        "type": { "type": "string" },
+        "value": { "type": "number" },
+        "expiryDate": { "type": "string", "format": "date-time" },
+        "usageLimit": { "type": "integer" }
+      },
+      "required": ["id", "code", "type", "value"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "User documents."
+    },
+    "/customerProfiles/{userId}": {
+      "schema": "CustomerProfile",
+      "description": "Customer specific profiles."
+    },
+    "/keeperProfiles/{userId}": {
+      "schema": "KeeperProfile",
+      "description": "Keeper specific profiles."
+    },
+    "/bookings/{bookingId}": {
+      "schema": "Booking",
+      "description": "Luggage service bookings."
+    },
+    "/bookings/{bookingId}/bags/{bagId}": {
+      "schema": "Bag",
+      "description": "Individual bags within a booking."
+    },
+    "/bookings/{bookingId}/trackingEvents/{eventId}": {
+      "schema": "TrackingEvent",
+      "description": "Tracking history for a booking."
+    },
+    "/payments/{paymentId}": {
+      "schema": "Payment",
+      "description": "Payment records."
+    },
+    "/incidents/{incidentId}": {
+      "schema": "Incident",
+      "description": "Reported incidents."
+    },
+    "/zones/{zoneId}": {
+      "schema": "Zone",
+      "description": "Service zones."
+    },
+    "/promoCodes/{codeId}": {
+      "schema": "PromoCode",
+      "description": "Promotional codes."
+    }
+  }
+}

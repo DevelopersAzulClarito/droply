@@ -1,0 +1,7 @@
+{
+  "name": "Remix: Droply",
+  "description": "Luggage logistics and storage platform for travelers in Malta. Real-time tracking, secure handling, and seamless pickup/delivery.",
+  "requestFramePermissions": [
+    "geolocation"
+  ]
+}
