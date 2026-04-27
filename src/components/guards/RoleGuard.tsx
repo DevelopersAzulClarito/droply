@@ -1,6 +1,6 @@
 import React from 'react';
 import { Navigate, Outlet } from 'react-router-dom';
-import { useAuth } from '../../contexts/AuthContext';
+import { useAuth } from '../../hooks/useAuth';
 import type { UserRole } from '../../types';
 
 interface Props {
@@ -12,9 +12,9 @@ interface Props {
  * Must be nested inside <AuthGuard> so `role` is guaranteed to be loaded.
  */
 const RoleGuard: React.FC<Props> = ({ allowed }) => {
-  const { role } = useAuth();
+  const { currentUser } = useAuth();
 
-  if (!role || !allowed.includes(role as UserRole)) {
+  if (!currentUser || !allowed.includes(currentUser.role)) {
     return <Navigate to="/" replace />;
   }
 

@@ -1,37 +1,18 @@
-import React, { useState } from 'react';
-import { auth, db } from '../firebase';
-import { GoogleAuthProvider, signInWithPopup } from 'firebase/auth';
-import { doc, setDoc, getDoc, serverTimestamp } from 'firebase/firestore';
+import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'motion/react';
+import { useAuth } from '../hooks/useAuth';
 
 const Login: React.FC = () => {
-  const [loading, setLoading] = useState(false);
+  const { loginWithGoogle, loading } = useAuth();
   const navigate = useNavigate();
 
   const handleGoogleLogin = async () => {
-    setLoading(true);
     try {
-      const provider = new GoogleAuthProvider();
-      const result = await signInWithPopup(auth, provider);
-      const user = result.user;
-
-      // Check if user exists in Firestore
-      const userDoc = await getDoc(doc(db, 'users', user.uid));
-      if (!userDoc.exists()) {
-        await setDoc(doc(db, 'users', user.uid), {
-          id: user.uid,
-          name: user.displayName,
-          email: user.email,
-          role: 'customer',
-          createdAt: serverTimestamp(),
-        });
-      }
-      navigate('/dashboard');
+      await loginWithGoogle();
+      navigate('/my-bookings');
     } catch (error) {
       console.error('Login error:', error);
-    } finally {
-      setLoading(false);
     }
   };
 
