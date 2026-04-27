@@ -1,15 +1,16 @@
 import React, { useState } from 'react';
 import { motion } from 'motion/react';
 import { useNavigate } from 'react-router-dom';
-import { auth, db } from '../firebase';
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
-import { Package, MapPin, Calendar, Clock, CreditCard } from 'lucide-react';
+import { db } from '../config/firebase';
+import { useAuth } from '../hooks/useAuth';
 
 const Booking: React.FC = () => {
+  const { currentUser } = useAuth();
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
-  
+
   const [formData, setFormData] = useState({
     serviceType: 'airport_to_hotel',
     pickupLocation: '',
@@ -17,15 +18,15 @@ const Booking: React.FC = () => {
     pickupDate: '',
     pickupTime: '',
     numberOfBags: 1,
-    notes: ''
+    notes: '',
   });
 
   const handleNext = () => setStep(step + 1);
   const handleBack = () => setStep(step - 1);
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    if (!auth.currentUser) {
+    if (!currentUser) {
       navigate('/login');
       return;
     }
@@ -35,7 +36,7 @@ const Booking: React.FC = () => {
       const bookingCode = 'DRP-' + Math.random().toString(36).substring(2, 8).toUpperCase();
       const bookingData = {
         bookingCode,
-        customerId: auth.currentUser.uid,
+        customerId: currentUser.id,
         serviceType: formData.serviceType,
         pickupLocation: { address: formData.pickupLocation },
         dropoffLocation: { address: formData.dropoffLocation },

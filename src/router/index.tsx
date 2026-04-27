@@ -1,4 +1,4 @@
-import React, { Suspense, lazy } from 'react';
+import { Suspense, lazy } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider } from '../contexts/AuthContext';
 import Layout from '../components/layout/Layout';
@@ -11,9 +11,10 @@ import Login from '../pages/Login';
 import Tracking from '../pages/Tracking';
 
 // Role-specific pages — lazy (only loaded when the user has the right role)
-const CustomerBooking  = lazy(() => import('../pages/Booking'));
-const KeeperDashboard  = lazy(() => import('../pages/Dashboard'));
-const AdminDashboard   = lazy(() => import('../pages/Dashboard')); // replace with real admin page
+const CustomerBooking = lazy(() => import('../pages/Booking'));
+const CustomerHistory = lazy(() => import('../pages/Dashboard'));
+const KeeperDashboard = lazy(() => import('../pages/keeper/KeeperDashboard'));
+const AdminDashboard  = lazy(() => import('../pages/admin/AdminDashboard'));
 
 const Spinner = () => (
   <div className="flex items-center justify-center h-screen">
@@ -42,7 +43,7 @@ export default function AppRouter() {
               <Route element={<RoleGuard allowed={['customer']} />}>
                 <Route element={<Layout />}>
                   <Route path="/booking"     element={<CustomerBooking />} />
-                  <Route path="/my-bookings" element={<CustomerBooking />} /> {/* swap for MyBookings */}
+                  <Route path="/my-bookings" element={<CustomerHistory />} />
                 </Route>
               </Route>
 
