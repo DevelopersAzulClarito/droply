@@ -1,14 +1,14 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
 import { LogOut, User } from 'lucide-react';
-import { useAuth } from '../../contexts/AuthContext';
-import { auth } from '../../firebase';
+import { useAuth } from '../../hooks/useAuth';
 
 const Navbar: React.FC = () => {
-  const { user, role } = useAuth();
+  const { currentUser, logout } = useAuth();
 
   const dashboardPath =
-    role === 'admin' ? '/admin' : role === 'keeper' ? '/keeper' : '/my-bookings';
+    currentUser?.role === 'admin'  ? '/admin'       :
+    currentUser?.role === 'keeper' ? '/keeper'      : '/my-bookings';
 
   return (
     <nav className="sticky top-0 z-50 bg-white/80 backdrop-blur-md border-b border-stone-200">
@@ -18,7 +18,8 @@ const Navbar: React.FC = () => {
         <div className="hidden md:flex items-center space-x-8">
           <Link to="/booking" className="text-sm font-medium hover:text-stone-600 transition-colors">Book</Link>
           <Link to="/track" className="text-sm font-medium hover:text-stone-600 transition-colors">Track</Link>
-          {user ? (
+
+          {currentUser ? (
             <div className="flex items-center space-x-4">
               <Link
                 to={dashboardPath}
@@ -28,7 +29,7 @@ const Navbar: React.FC = () => {
                 <span>Dashboard</span>
               </Link>
               <button
-                onClick={() => auth.signOut()}
+                onClick={logout}
                 className="p-2 text-stone-500 hover:text-stone-900 transition-colors"
                 title="Logout"
               >

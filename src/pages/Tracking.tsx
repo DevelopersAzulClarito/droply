@@ -1,13 +1,13 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { db } from '../firebase';
+import { db } from '../config/firebase';
 import { doc, onSnapshot, collection, query, orderBy } from 'firebase/firestore';
 import { motion } from 'motion/react';
 import { Package, MapPin, CheckCircle2, Clock, Truck, ShieldCheck } from 'lucide-react';
 import { format } from 'date-fns';
 
 const Tracking: React.FC = () => {
-  const { bookingId } = useParams();
+  const { bookingCode: bookingId } = useParams();
   const [booking, setBooking] = useState<any>(null);
   const [events, setEvents] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
