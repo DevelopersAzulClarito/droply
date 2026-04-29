@@ -1,0 +1,86 @@
+name: CI — Build & Type Check
+
+on:
+  push:
+    branches: [main, develop, feature/**]
+  pull_request:
+    branches: [main, develop]
+
+jobs:
+  # ──────────────────────────────────────────────
+  # FRONTEND
+  # ──────────────────────────────────────────────
+  frontend:
+    name: Frontend — Install & Build
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: frontend
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Type check
+        run: npx tsc --noEmit
+
+      - name: Build
+        run: npm run build
+        env:
+          # Variables de entorno mock para que Vite pueda compilar en CI
+          VITE_FIREBASE_API_KEY: mock-api-key
+          VITE_FIREBASE_AUTH_DOMAIN: mock-auth-domain
+          VITE_FIREBASE_PROJECT_ID: mock-project-id
+          VITE_FIREBASE_STORAGE_BUCKET: mock-storage-bucket
+          VITE_FIREBASE_MESSAGING_SENDER_ID: mock-sender-id
+          VITE_FIREBASE_APP_ID: mock-app-id
+          VITE_FIREBASE_DATABASE_ID: "(default)"
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-dist
+          path: frontend/dist
+          retention-days: 1
+
+  # ──────────────────────────────────────────────
+  # BACKEND
+  # ──────────────────────────────────────────────
+  backend:
+    name: Backend — Install & Build
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: backend
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Type check
+        run: npx tsc --noEmit
+
+      - name: Build
+        run: npm run build
