@@ -1,28 +1,16 @@
 import React, { useEffect, useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
-import { db } from '../firebase';
-import { collection, query, where, onSnapshot, orderBy, Timestamp, type Query, type DocumentData } from 'firebase/firestore';
+import { db } from '../config/firebase';
+import { collection, query, where, onSnapshot, orderBy, type Query, type DocumentData } from 'firebase/firestore';
+import type { FirestoreBooking } from '../types';
 import { Link } from 'react-router-dom';
 import { motion } from 'motion/react';
 import { Package, Clock, CreditCard, MapPin, ArrowRight, ShieldCheck, Leaf } from 'lucide-react';
 import { formatDate, formatStatus, statusBadgeClass, getProgressFromStatus } from '../utils/formatters';
 
-interface Booking {
-  id: string;
-  customerId: string;
-  assignedKeeperId?: string;
-  bookingStatus: 'pending' | 'in_transit' | 'stored' | 'delivered' | string;
-  totalPrice?: number;
-  numberOfBags?: number;
-  serviceType?: string;
-  bookingCode?: string;
-  dropoffLocation?: { address: string };
-  createdAt?: Timestamp;
-}
-
 const Dashboard: React.FC = () => {
   const { user, role } = useAuth();
-  const [bookings, setBookings] = useState<Booking[]>([]);
+  const [bookings, setBookings] = useState<FirestoreBooking[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -41,7 +29,7 @@ const Dashboard: React.FC = () => {
     const unsubscribe = onSnapshot(
       q,
       (snapshot) => {
-        setBookings(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Booking)));
+        setBookings(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as FirestoreBooking)));
         setLoading(false);
       },
       () => {
@@ -317,7 +305,7 @@ const Dashboard: React.FC = () => {
   );
 };
 
-const ActiveBookingCard: React.FC<{ booking: Booking }> = ({ booking }) => {
+const ActiveBookingCard: React.FC<{ booking: FirestoreBooking }> = ({ booking }) => {
   const progress = getProgressFromStatus(booking.bookingStatus);
 
   return (
