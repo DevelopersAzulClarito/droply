@@ -1,111 +1,217 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
 import { motion } from 'motion/react';
-import { ArrowRight, Shield, Clock, Map, Package } from 'lucide-react';
+import { ArrowRight, Shield, Clock, Map, Package, Search, MapPin } from 'lucide-react';
 
 const Home: React.FC = () => {
   return (
-    <div className="overflow-hidden">
+    <div className="overflow-hidden bg-surface">
       {/* Hero Section */}
-      <section className="relative h-[90vh] flex items-center px-6 bg-stone-900 text-white">
+      <section className="relative pt-32 pb-20 px-6">
         <div className="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
           <motion.div 
-            initial={{ opacity: 0, x: -50 }}
+            initial={{ opacity: 0, x: -30 }}
             animate={{ opacity: 1, x: 0 }}
             transition={{ duration: 0.8 }}
+            className="z-10"
           >
-            <h1 className="text-6xl md:text-8xl font-bold tracking-tighter leading-[0.9] mb-8">
-              TRAVEL <br />
-              <span className="italic serif font-light text-stone-400">HANDS-FREE</span> <br />
-              IN MALTA.
+            <div className="inline-block px-3 py-1 bg-secondary-soft/30 text-secondary text-[10px] font-bold uppercase tracking-widest rounded-sm mb-6">
+              Malta's #1 Luggage service
+            </div>
+            <h1 className="text-5xl md:text-7xl font-bold display text-navy leading-[1.1] mb-6">
+              TRAVEL <span className="text-secondary">HANDS-FREE</span> <br />
+              IN MALTA
             </h1>
-            <p className="text-xl text-stone-400 max-w-md mb-10 leading-relaxed">
-              Drop your bags at the airport, hotel, or port. We'll handle the rest while you explore the islands.
+            <p className="text-navy/60 text-lg mb-10 max-w-lg leading-relaxed">
+              Say goodbye to heavy bags. We collect, store, and deliver your luggage across Malta while you explore the beauty of the Mediterranean. Seamless, secure, and stress-free.
             </p>
-            <div className="flex flex-col sm:flex-row gap-4">
-              <Link to="/book" className="group bg-white text-stone-900 px-8 py-4 rounded-full font-bold text-lg flex items-center justify-center gap-2 hover:bg-stone-200 transition-all">
-                Book Now
-                <ArrowRight className="group-hover:translate-x-1 transition-transform" />
+            
+            <div className="flex flex-wrap gap-4 items-center">
+              <Link to="/book" className="px-8 py-4 bg-primary text-white rounded-lg font-bold flex items-center gap-3 hover:bg-primary-deep transition-all shadow-lg shadow-primary/20">
+                Book Now <ArrowRight size={18} />
               </Link>
-              <Link to="/track" className="px-8 py-4 rounded-full font-bold text-lg border border-stone-700 flex items-center justify-center hover:bg-stone-800 transition-all">
-                Track My Bags
-              </Link>
-            </div>
-          </motion.div>
-          
-          <motion.div 
-            initial={{ opacity: 0, scale: 0.8 }}
-            animate={{ opacity: 1, scale: 1 }}
-            transition={{ duration: 1, delay: 0.2 }}
-            className="hidden lg:block relative"
-          >
-            <img 
-              src="https://images.unsplash.com/photo-1580674285054-bed31e145f59?q=80&w=2070&auto=format&fit=crop" 
-              alt="Valletta, Malta" 
-              className="rounded-3xl shadow-2xl grayscale hover:grayscale-0 transition-all duration-700"
-              referrerPolicy="no-referrer"
-            />
-            <div className="absolute -bottom-10 -left-10 bg-white text-stone-900 p-8 rounded-2xl shadow-xl max-w-xs">
-              <p className="text-sm font-medium uppercase tracking-widest text-stone-400 mb-2">Live Status</p>
-              <p className="text-2xl font-bold tracking-tight">1,240+ Bags delivered today safely.</p>
-            </div>
-          </motion.div>
-        </div>
-      </section>
-
-      {/* How it works */}
-      <section className="py-24 px-6 bg-white">
-        <div className="max-w-7xl mx-auto">
-          <div className="flex flex-col md:flex-row justify-between items-end mb-16 gap-8">
-            <div>
-              <h2 className="text-xs uppercase tracking-[0.3em] font-bold text-stone-400 mb-4">The Process</h2>
-              <h3 className="text-5xl font-bold tracking-tighter italic serif">Simple as 1, 2, 3.</h3>
-            </div>
-            <p className="text-stone-500 max-w-sm">We've optimized every step to ensure your luggage is safe and your hands are free.</p>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-12">
-            {[
-              { icon: <Clock size={32} />, title: "Book Online", desc: "Schedule your pickup and delivery points in seconds." },
-              { icon: <Shield size={32} />, title: "Secure Seal", desc: "Your bags are sealed with unique security codes and photographed." },
-              { icon: <Map size={32} />, title: "Real-time Tracking", desc: "Follow your luggage's journey across Malta in real-time." }
-            ].map((step, i) => (
-              <div key={i} className="group p-8 border border-stone-100 rounded-3xl hover:border-stone-900 transition-all duration-500">
-                <div className="mb-6 text-stone-400 group-hover:text-stone-900 transition-colors">
-                  {step.icon}
+              
+              <form 
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  const code = (e.currentTarget.elements.namedItem('trackCode') as HTMLInputElement).value;
+                  if (code) window.location.href = `/track/${code.toUpperCase()}`;
+                }}
+              >
+                <div className="relative group">
+                  <input 
+                    name="trackCode"
+                    type="text" 
+                    placeholder="TRACKING CODE"
+                    className="w-full pl-12 pr-6 py-4 border border-secondary text-secondary rounded-lg font-bold focus:bg-secondary/5 outline-none transition-all uppercase placeholder:text-secondary/40 min-w-[240px]"
+                  />
+                  <div className="absolute left-4 top-1/2 -translate-y-1/2 text-secondary">
+                    <Search size={18} />
+                  </div>
                 </div>
-                <h4 className="text-2xl font-bold mb-4">{step.title}</h4>
-                <p className="text-stone-500 leading-relaxed">{step.desc}</p>
+              </form>
+            </div>
+
+            <div className="mt-12 flex items-center gap-4">
+              <div className="flex -space-x-3">
+                {[1, 2, 3].map((i) => (
+                  <img 
+                    key={i} 
+                    src={`https://i.pravatar.cc/100?img=${i + 10}`} 
+                    className="w-10 h-10 rounded-full border-2 border-surface" 
+                    alt="User"
+                  />
+                ))}
+                <div className="w-10 h-10 rounded-full bg-secondary-soft flex items-center justify-center text-[10px] font-bold text-secondary border-2 border-surface">
+                  +1k
+                </div>
               </div>
-            ))}
-          </div>
+              <p className="text-xs text-navy/40 font-medium">Trusted by over 1,000+ travelers in Valetta & St. Julians</p>
+            </div>
+          </motion.div>
+
+          <motion.div 
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ duration: 1 }}
+            className="relative"
+          >
+            <div className="aspect-square rounded-[3rem] overflow-hidden shadow-2xl relative">
+              <img 
+                src="https://images.unsplash.com/photo-1544620347-c4fd4a3d5957?q=80&w=2069" 
+                alt="Suitcase" 
+                className="w-full h-full object-cover"
+              />
+              <motion.div 
+                initial={{ y: 20, opacity: 0 }}
+                animate={{ y: 0, opacity: 1 }}
+                transition={{ delay: 0.5 }}
+                className="absolute bottom-8 left-8 right-8 bg-white/90 backdrop-blur p-4 rounded-2xl flex items-center gap-4 shadow-xl border border-white/40"
+              >
+                <div className="w-10 h-10 bg-primary/10 rounded-xl flex items-center justify-center text-primary">
+                  <Shield size={20} />
+                </div>
+                <div>
+                  <p className="text-[10px] font-bold text-primary uppercase tracking-widest">Securely Stored</p>
+                  <p className="text-xs text-navy/60">Valetta Central Station • 2m ago</p>
+                </div>
+              </motion.div>
+            </div>
+            {/* Background blob */}
+            <div className="absolute -top-10 -right-10 w-72 h-72 bg-secondary/10 blur-[100px] rounded-full -z-10"></div>
+          </motion.div>
         </div>
       </section>
 
-      {/* Services */}
-      <section className="py-24 px-6 bg-stone-50 border-y border-stone-200">
-        <div className="max-w-7xl mx-auto">
-          <div className="text-center mb-16">
-            <h2 className="text-5xl font-bold tracking-tighter mb-4">Our Services</h2>
-            <p className="text-stone-500">Tailored logistics for every traveler.</p>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-            {[
-              "Airport to Hotel",
-              "Hotel to Airport",
-              "Cruise Port to Hotel",
-              "Point-to-Point Transfer"
-            ].map((service, i) => (
-              <div key={i} className="bg-white p-8 rounded-2xl shadow-sm border border-stone-100 hover:shadow-md transition-all">
-                <Package className="mb-4 text-stone-400" />
-                <h5 className="text-lg font-bold mb-2">{service}</h5>
-                <p className="text-sm text-stone-500 mb-6">Reliable transport across all major locations in Malta.</p>
-                <Link to="/book" className="text-sm font-bold underline underline-offset-4">Book this</Link>
-              </div>
-            ))}
-          </div>
+      {/* The Process Section */}
+      <section className="py-24 px-6 bg-white">
+        <div className="max-w-7xl mx-auto text-center mb-16">
+          <h2 className="text-4xl font-bold display text-navy mb-4">The Process</h2>
+          <p className="text-navy/50">Three simple steps to unlock your freedom and enjoy your trip bag-free.</p>
         </div>
+
+        <div className="max-w-7xl mx-auto grid grid-cols-1 md:grid-cols-3 gap-8">
+          {[
+            { 
+              icon: <Package className="text-secondary" />, 
+              title: "1. Book Online", 
+              desc: "Select your pickup and delivery points on our app. Instant confirmation via SMS.",
+              bg: "bg-secondary/10" 
+            },
+            { 
+              icon: <Shield className="text-primary" />, 
+              title: "2. We Collect", 
+              desc: "Our certified courier meets you at your location to collect and tag your luggage safely.",
+              bg: "bg-primary/10"
+            },
+            { 
+              icon: <MapPin className="text-secondary" />, 
+              title: "3. Delivered To You", 
+              desc: "Enjoy your day! We deliver your bags to your final destination at the agreed time.",
+              bg: "bg-secondary/10"
+            }
+          ].map((step, i) => (
+            <motion.div 
+              key={i}
+              whileHover={{ y: -5 }}
+              className="p-10 bg-surface rounded-[2rem] border border-navy/5 shadow-soft transition-all"
+            >
+              <div className={`w-14 h-14 ${step.bg} rounded-2xl flex items-center justify-center mb-8`}>
+                {step.icon}
+              </div>
+              <h3 className="text-xl font-bold display text-navy mb-4">{step.title}</h3>
+              <p className="text-sm text-navy/50 leading-relaxed">{step.desc}</p>
+            </motion.div>
+          ))}
+        </div>
+      </section>
+
+      {/* Our Services */}
+      <section className="py-24 px-6 bg-surface">
+        <div className="max-w-7xl mx-auto flex justify-between items-end mb-12">
+          <div>
+            <h2 className="text-4xl font-bold display text-navy mb-4">Our Services</h2>
+            <p className="text-navy/50">Tailored logistics for every part of your journey across the island.</p>
+          </div>
+          <Link to="/book" className="text-sm font-bold text-navy hover:text-secondary flex items-center gap-2 group">
+            Explore all locations <ArrowRight size={16} className="group-hover:translate-x-1 transition-transform" />
+          </Link>
+        </div>
+
+        <div className="max-w-7xl mx-auto grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+          {[
+            { img: "https://images.unsplash.com/photo-1436491865332-7a61a109c0f3", tag: "Available 24/7", title: "Airport to Hotel" },
+            { img: "https://images.unsplash.com/photo-1566073771259-6a8506099945", tag: "Popular Choice", title: "Hotel to Airport" },
+            { img: "https://images.unsplash.com/photo-1548574505-5e239809ee19", tag: "Island Wide", title: "Inter-Hotel" },
+            { img: "https://images.unsplash.com/photo-1590073242678-70ee3fc28e84", tag: "Gozo & Comino", title: "Ferry Storage" }
+          ].map((service, i) => (
+            <div key={i} className="group relative aspect-[4/5] rounded-[2rem] overflow-hidden shadow-xl cursor-pointer">
+              <img 
+                src={`${service.img}?q=80&w=800`} 
+                alt={service.title} 
+                className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
+              />
+              <div className="absolute inset-0 bg-gradient-to-t from-navy/90 via-navy/20 to-transparent"></div>
+              <div className="absolute bottom-0 left-0 right-0 p-8">
+                <div className="flex items-center gap-2 mb-2">
+                  <div className="w-2 h-2 rounded-full bg-primary"></div>
+                  <span className="text-[10px] text-white/60 font-bold uppercase tracking-widest">{service.tag}</span>
+                </div>
+                <h3 className="text-xl font-bold text-white mb-6">{service.title}</h3>
+                <Link to="/book" className="w-full py-3 bg-secondary text-white rounded-xl text-center text-xs font-bold block hover:bg-secondary/80 transition-colors">
+                  Book Now
+                </Link>
+              </div>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      {/* Hero CTA Banner */}
+      <section className="py-24 px-6">
+        <motion.div 
+          className="max-w-7xl mx-auto rounded-[3rem] p-16 md:p-24 bg-primary-deep text-center text-white relative overflow-hidden"
+          style={{ backgroundImage: "linear-gradient(135deg, rgba(243,146,0,1) 0%, rgba(139,80,0,1) 100%)" }}
+        >
+          <div className="relative z-10">
+            <h2 className="text-4xl md:text-6xl font-bold display mb-8">
+              Ready for your luggage-free journey?
+            </h2>
+            <p className="text-white/80 text-lg mb-12 max-w-2xl mx-auto leading-relaxed">
+              Join thousands of travelers who have rediscovered the joy of exploration without being weighed down.
+            </p>
+            <div className="flex flex-wrap justify-center gap-6">
+              <Link to="/book" className="px-10 py-5 bg-primary text-white rounded-xl font-bold hover:bg-primary-deep transition-all shadow-2xl shadow-black/20">
+                Start My Booking
+              </Link>
+              <button className="px-10 py-5 bg-white/10 backdrop-blur border border-white/20 text-white rounded-xl font-bold hover:bg-white/20 transition-all">
+                Download App
+              </button>
+            </div>
+          </div>
+          {/* Subtle pattern background placeholder */}
+          <div className="absolute inset-0 opacity-10 pointer-events-none" style={{ backgroundImage: "radial-gradient(circle at 1px 1px, white 1px, transparent 0)", backgroundSize: "40px 40px" }}></div>
+        </motion.div>
       </section>
     </div>
   );

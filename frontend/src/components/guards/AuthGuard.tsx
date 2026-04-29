@@ -3,20 +3,16 @@ import { Navigate, Outlet } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
 
 const Spinner = () => (
-  <div className="flex items-center justify-center h-screen">
-    <div className="w-8 h-8 border-4 border-stone-900 border-t-transparent rounded-full animate-spin" />
+  <div className="flex items-center justify-center h-screen bg-surface">
+    <div className="w-10 h-10 border-4 border-secondary/20 border-t-secondary rounded-full animate-spin" />
   </div>
 );
 
-/**
- * Redirects unauthenticated users to /login.
- * Place this as a parent Route element wrapping role-specific routes.
- */
 const AuthGuard: React.FC = () => {
-  const { currentUser, loading } = useAuth();
+  const { user, loading } = useAuth();
 
   if (loading) return <Spinner />;
-  if (!currentUser) return <Navigate to="/login" replace />;
+  if (!user) return <Navigate to="/login" replace />;
 
   return <Outlet />;
 };
