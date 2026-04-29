@@ -1,73 +1,47 @@
-import { createContext, useEffect, useState, ReactNode } from 'react';
-import { onAuthStateChanged, User as FirebaseUser } from 'firebase/auth';
+import React, { createContext, useContext, useEffect, useState } from 'react';
+import { onAuthStateChanged, User } from 'firebase/auth';
 import { doc, getDoc } from 'firebase/firestore';
-import { auth, db } from '../config/firebase';
-import { loginWithGoogle as loginWithGoogleService, logout as logoutService } from '../services/authService';
-import type { User } from '../types';
+import { auth, db, handleFirestoreError, OperationType } from '../firebase';
 
 interface AuthContextType {
-  currentUser: User | null;
+  user: User | null;
+  role: string | null;
   loading: boolean;
-  loginWithGoogle: () => Promise<void>;
-  logout: () => Promise<void>;
 }
 
-export const AuthContext = createContext<AuthContextType | null>(null);
+export const AuthContext = createContext<AuthContextType>({ user: null, role: null, loading: true });
 
-export const AuthProvider = ({ children }: { children: ReactNode }) => {
-  const [currentUser, setCurrentUser] = useState<User | null>(null);
+export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const [user, setUser] = useState<User | null>(null);
+  const [role, setRole] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser: FirebaseUser | null) => {
-      if (!firebaseUser) {
-        setCurrentUser(null);
-        setLoading(false);
-        return;
-      }
-
-      try {
-        const snap = await getDoc(doc(db, 'users', firebaseUser.uid));
-        if (snap.exists()) {
-          const data = snap.data();
-          setCurrentUser({
-            id:    firebaseUser.uid,
-            name:  data.name  ?? '',
-            email: data.email ?? '',
-            phone: data.phone ?? '',
-            role:  data.role,
-          });
-        } else {
-          setCurrentUser(null);
+    const unsubscribe = onAuthStateChanged(auth, async (user) => {
+      setUser(user);
+      if (user) {
+        const userPath = `users/${user.uid}`;
+        try {
+          const userDoc = await getDoc(doc(db, 'users', user.uid));
+          if (userDoc.exists()) {
+            setRole(userDoc.data().role);
+          }
+        } catch (error) {
+          handleFirestoreError(error, OperationType.GET, userPath);
         }
-      } catch {
-        setCurrentUser(null);
+      } else {
+        setRole(null);
       }
       setLoading(false);
     });
-
     return unsubscribe;
   }, []);
 
-  const loginWithGoogle = async () => {
-    setLoading(true);
-    try {
-      await loginWithGoogleService();
-      // onAuthStateChanged fires next and updates currentUser + setLoading(false)
-    } catch (err) {
-      setLoading(false);
-      throw err;
-    }
-  };
-
-  const logout = async () => {
-    await logoutService();
-    setCurrentUser(null);
-  };
-
   return (
-    <AuthContext.Provider value={{ currentUser, loading, loginWithGoogle, logout }}>
+    <AuthContext.Provider value={{ user, role, loading }}>
       {children}
     </AuthContext.Provider>
   );
 };
+
+export const useAuth = () => useContext(AuthContext);

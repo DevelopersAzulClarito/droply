@@ -7,14 +7,10 @@ interface Props {
   allowed: UserRole[];
 }
 
-/**
- * Redirects users whose role is not in `allowed` back to /.
- * Must be nested inside <AuthGuard> so `role` is guaranteed to be loaded.
- */
 const RoleGuard: React.FC<Props> = ({ allowed }) => {
-  const { currentUser } = useAuth();
+  const { role } = useAuth();
 
-  if (!currentUser || !allowed.includes(currentUser.role)) {
+  if (!role || !allowed.includes(role as UserRole)) {
     return <Navigate to="/" replace />;
   }
 

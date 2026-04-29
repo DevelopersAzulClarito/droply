@@ -4,7 +4,7 @@ export type UserRole = 'customer' | 'keeper' | 'admin';
 
 // ─── Booking states ──────────────────────────────────────────────────────────
 
-export type BookingStatus = 'confirmed' | 'picked_up' | 'in_transit' | 'delivered';
+export type BookingStatus = 'created' | 'confirmed' | 'picked_up' | 'in_transit' | 'delivered';
 export type PaymentStatus = 'pending' | 'paid' | 'refunded' | 'failed';
 
 // ─── Shared primitives ───────────────────────────────────────────────────────

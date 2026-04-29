@@ -1,17 +1,58 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Playfair+Display:ital,wght@0,400;0,700;1,400;1,700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700&family=Outfit:wght@300;400;500;600;700;800&display=swap');
 @import "tailwindcss";
 
 @theme {
-  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
-  --font-serif: "Playfair Display", serif;
+  --font-sans: "Plus Jakarta Sans", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "Outfit", sans-serif;
+  
+  --color-primary: #ff9800;
+  --color-primary-deep: #8b5000;
+  --color-secondary: #00a69c;
+  --color-secondary-soft: #78f7e8;
+  --color-navy: #1a2b3c;
+  --color-surface: #f7faf9;
+  --color-surface-dim: #d7dbda;
+  --color-surface-bright: #f7faf9;
+  
+  --radius-xl: 1rem;
+  --radius-2xl: 1.5rem;
 }
 
 @layer base {
   body {
-    @apply bg-stone-50 text-stone-900;
+    @apply bg-surface text-navy font-sans antialiased;
+    selection: bg-secondary/30;
   }
 }
 
-.serif {
-  font-family: var(--font-serif);
+@layer utilities {
+  .display { font-family: var(--font-display); }
+  
+  .text-balance { text-wrap: balance; }
+  
+  .glass {
+    @apply bg-white/70 backdrop-blur-md border border-white/40;
+  }
+  
+  .shadow-soft {
+    box-shadow: 0 10px 30px -5px rgba(0, 166, 156, 0.1);
+  }
+
+  .nav-blur {
+    @apply sticky top-0 z-50 bg-surface/80 backdrop-blur-xl border-b border-navy/5;
+  }
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  @apply bg-primary/20 rounded-full;
+}
+::-webkit-scrollbar-thumb:hover {
+  @apply bg-primary/40;
 }
