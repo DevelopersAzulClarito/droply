@@ -9,8 +9,10 @@ export type UserRole = 'customer' | 'keeper' | 'admin';
 export type BookingStatus =
   | 'created'
   | 'confirmed'
+  | 'pending'
   | 'picked_up'
   | 'in_transit'
+  | 'stored'
   | 'delivered';
 
 export type PaymentStatus = 'pending' | 'paid' | 'refunded' | 'failed';
@@ -25,21 +27,25 @@ export interface GeoLocation {
 
 // ─── Firestore document shapes ─────────────────────────────────────────────
 
-/** Shape of a booking document as stored in Firestore */
+/**
+ * Canonical shape of a booking Firestore document.
+ * Fields beyond `id`, `customerId`, and `bookingStatus` are optional
+ * to accommodate partial writes and legacy documents.
+ */
 export interface FirestoreBooking {
   id: string;
-  bookingCode: string;
   customerId: string;
-  assignedKeeperId?: string;
-  serviceType: string;
-  pickupLocation: GeoLocation;
-  dropoffLocation: GeoLocation;
-  pickupDateTime: string;
-  numberOfBags: number;
-  totalPrice: number;
-  currency: string;
   bookingStatus: BookingStatus | string;
-  paymentStatus: PaymentStatus | string;
+  bookingCode?: string;
+  assignedKeeperId?: string;
+  serviceType?: string;
+  pickupLocation?: GeoLocation;
+  dropoffLocation?: GeoLocation;
+  pickupDateTime?: string;
+  numberOfBags?: number;
+  totalPrice?: number;
+  currency?: string;
+  paymentStatus?: PaymentStatus | string;
   notes?: string;
   createdAt?: Timestamp;
 }
