@@ -1,66 +1,91 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { db, handleFirestoreError, OperationType } from '../firebase';
-import { doc, onSnapshot, collection, query, orderBy, where, limit } from 'firebase/firestore';
+import { db } from '../firebase';
+import {
+  doc, onSnapshot, collection, query,
+  orderBy, where, limit, getDocs,
+} from 'firebase/firestore';
+import type { FirestoreError } from 'firebase/firestore';
 import { motion } from 'motion/react';
-import { Package, CheckCircle2, Clock, Truck, ShieldCheck, Search } from 'lucide-react';
-import { format } from 'date-fns';
+import { Package, CheckCircle2, Clock, Truck, ShieldCheck, Crosshair, HeadphonesIcon } from 'lucide-react';
+import { formatDate } from '../utils/formatters';
+import type { FirestoreBooking, TrackingEvent } from '../types';
 
 const Tracking: React.FC = () => {
   const { bookingId } = useParams();
   const navigate = useNavigate();
-  const [booking, setBooking]   = useState<any>(null);
-  const [events, setEvents]     = useState<any[]>([]);
+
+  const [booking, setBooking]   = useState<FirestoreBooking | null>(null);
+  const [events, setEvents]     = useState<TrackingEvent[]>([]);
   const [loading, setLoading]   = useState(true);
   const [searchId, setSearchId] = useState('');
   const [error, setError]       = useState<string | null>(null);
 
+  // ── Main booking subscription ──────────────────────────────────────────
   useEffect(() => {
     if (!bookingId) {
       setLoading(false);
-      setBooking(null);
       return;
     }
 
     setLoading(true);
     setError(null);
 
+    // Helper: search by human-readable booking code and redirect to real doc ID.
+    // Using getDocs (one-time) avoids nested onSnapshot that leaks listeners.
+    const searchByCode = (code: string) => {
+      getDocs(
+        query(
+          collection(db, 'bookings'),
+          where('bookingCode', '==', code.toUpperCase()),
+          limit(1),
+        ),
+      )
+        .then((snap) => {
+          if (!snap.empty) {
+            // Navigate to the actual Firestore doc ID so the next mount
+            // subscribes to real-time updates on the correct document.
+            navigate(`/track/${snap.docs[0].id}`, { replace: true });
+          } else {
+            setBooking(null);
+            setError('Booking not found. Please verify your tracking code.');
+            setLoading(false);
+          }
+        })
+        .catch(() => {
+          setError('Invalid tracking code or insufficient permissions.');
+          setLoading(false);
+        });
+    };
+
     const unsubBooking = onSnapshot(
       doc(db, 'bookings', bookingId),
       (snapshot) => {
         if (snapshot.exists()) {
-          setBooking({ id: snapshot.id, ...snapshot.data() });
+          setBooking({ id: snapshot.id, ...snapshot.data() } as FirestoreBooking);
           setLoading(false);
         } else {
-          const q = query(
-            collection(db, 'bookings'),
-            where('bookingCode', '==', bookingId.toUpperCase()),
-            limit(1),
-          );
-
-          onSnapshot(
-            q,
-            (querySnapshot) => {
-              if (!querySnapshot.empty) {
-                const foundDoc = querySnapshot.docs[0];
-                setBooking({ id: foundDoc.id, ...foundDoc.data() });
-                setLoading(false);
-              } else {
-                setBooking(null);
-                setError('Booking not found. Ensure the code is exact.');
-                setLoading(false);
-              }
-            },
-            (err) => handleFirestoreError(err, OperationType.LIST, 'bookings'),
-          );
+          // Direct doc lookup returned nothing — try by booking code.
+          searchByCode(bookingId);
         }
       },
-      (err) => handleFirestoreError(err, OperationType.GET, `bookings/${bookingId}`),
+      (err: FirestoreError) => {
+        // permission-denied fires when: user is not logged in, the doc belongs
+        // to someone else, or the ID looks valid but rules reject it.
+        // Fall back to a code search before giving up.
+        if (err.code === 'permission-denied' || err.code === 'unauthenticated') {
+          searchByCode(bookingId);
+        } else {
+          setError('Could not load tracking information. Please try again.');
+          setLoading(false);
+        }
+      },
     );
 
     return () => unsubBooking();
-  }, [bookingId]);
+  }, [bookingId, navigate]);
 
+  // ── Tracking events subscription ───────────────────────────────────────
   useEffect(() => {
     if (!booking?.id) return;
 
@@ -70,112 +95,159 @@ const Tracking: React.FC = () => {
         orderBy('timestamp', 'desc'),
       ),
       (snapshot) => {
-        setEvents(snapshot.docs.map(d => ({ id: d.id, ...d.data() })));
+        setEvents(snapshot.docs.map(d => ({ id: d.id, ...d.data() } as TrackingEvent)));
       },
-      (err) => handleFirestoreError(err, OperationType.LIST, `bookings/${booking.id}/trackingEvents`),
+      () => {
+        // Non-critical: silently ignore tracking event errors
+        setEvents([]);
+      },
     );
 
     return () => unsubEvents();
   }, [booking?.id]);
 
+  // ── Search form ────────────────────────────────────────────────────────
   const handleSearch = (e: React.SyntheticEvent) => {
     e.preventDefault();
-    if (searchId.trim()) {
-      navigate(`/track/${searchId.trim().toUpperCase()}`);
+    const code = searchId.trim();
+    if (!code) {
+      setError('Please enter a tracking code.');
+      return;
     }
+    setError(null);
+    navigate(`/track/${code.toUpperCase()}`);
   };
 
+  // ── Loading screen ─────────────────────────────────────────────────────
   if (loading) return (
-    <div className="min-h-screen bg-surface flex flex-col items-center justify-center gap-4">
-      <div className="w-12 h-12 border-4 border-secondary/20 border-t-secondary rounded-full animate-spin" />
-      <p className="text-[10px] uppercase tracking-widest font-bold text-navy/40">Locating Package...</p>
+    <div className="min-h-screen bg-[#f7faf9] flex flex-col items-center justify-center gap-6 font-['Plus_Jakarta_Sans']">
+      <div className="w-14 h-14 border-4 border-[#006a62]/20 border-t-[#006a62] rounded-full animate-spin" />
+      <p className="text-xs uppercase tracking-widest font-bold text-[#4f6073] animate-pulse">
+        Locating Package...
+      </p>
     </div>
   );
 
+  // ── Search / not-found view ────────────────────────────────────────────
   if (!bookingId || !booking) {
     return (
-      <div className="min-h-screen bg-surface flex items-center justify-center px-6">
+      <div className="min-h-screen bg-[#f7faf9] flex items-center justify-center px-4 sm:px-6 font-['Plus_Jakarta_Sans'] pt-20">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          className="max-w-md w-full bg-white p-12 rounded-[2.5rem] shadow-soft border border-navy/5 text-center"
+          className="max-w-xl w-full bg-white p-8 sm:p-10 md:p-14 rounded-[2.5rem] shadow-[0_15px_40px_-10px_rgba(0,106,98,0.15)] text-center relative overflow-hidden"
         >
-          <div className="w-20 h-20 bg-secondary/10 rounded-[2rem] flex items-center justify-center text-secondary mx-auto mb-8">
-            <Search size={32} />
-          </div>
-          <h1 className="text-3xl font-bold display text-navy mb-4">Track Your Bags</h1>
-          <p className="text-navy/40 text-sm mb-10 leading-relaxed font-medium">
-            Enter your unique booking reference to see real-time updates of your items.
+          <div className="absolute top-0 left-0 w-full h-1.5 bg-gradient-to-r from-[#006a62] to-[#ff9800]" />
+
+          <h1 className="text-3xl sm:text-4xl font-extrabold text-[#181c1c] mb-4 tracking-tight">
+            Track Luggage
+          </h1>
+          <p className="text-[#4f6073] text-sm mb-8 leading-relaxed">
+            Real-time updates on your belongings. Freedom of movement starts with peace of mind.
           </p>
 
-          <form onSubmit={handleSearch} className="space-y-6">
-            <input
-              type="text"
-              placeholder="e.g. DL-1234"
-              className="w-full h-14 px-6 bg-surface rounded-xl border border-navy/5 focus:border-secondary outline-none text-center font-bold tracking-widest uppercase text-navy"
-              value={searchId}
-              onChange={(e) => setSearchId(e.target.value)}
-            />
+          <form onSubmit={handleSearch} className="space-y-5 text-left">
+            <div className="space-y-2">
+              <label htmlFor="trackSearch" className="text-xs font-bold text-[#181c1c] ml-1">
+                Enter Booking ID or Code
+              </label>
+              <div className="relative">
+                <input
+                  id="trackSearch"
+                  type="text"
+                  placeholder="e.g. DL-8829"
+                  className="w-full h-14 pl-12 pr-5 bg-white rounded-xl border border-[#e0e3e2] focus:border-[#006a62] focus:ring-2 focus:ring-[#006a62]/20 outline-none font-bold tracking-widest uppercase text-[#181c1c] placeholder:text-[#a1b2c8] transition-all"
+                  value={searchId}
+                  onChange={(e) => setSearchId(e.target.value)}
+                />
+                <Package className="absolute left-4 top-1/2 -translate-y-1/2 text-[#006a62]" size={20} />
+              </div>
+            </div>
+
             {error && (
-              <p className="text-[10px] font-bold text-primary uppercase tracking-widest">{error}</p>
+              <p className="text-[10px] font-bold text-[#ba1a1a] uppercase tracking-widest text-center bg-[#ffdad6] py-2.5 px-4 rounded-lg">
+                {error}
+              </p>
             )}
+
             <button
               type="submit"
-              className="w-full h-14 bg-primary text-white rounded-xl font-bold uppercase tracking-widest text-xs hover:bg-primary-deep transition-all shadow-lg shadow-primary/20"
+              disabled={loading}
+              className="w-full h-14 bg-[#ff9800] text-white rounded-xl font-bold text-lg hover:bg-[#e68a00] active:scale-95 transition-all shadow-[0_10px_20px_-5px_rgba(255,152,0,0.4)] flex items-center justify-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed"
             >
-              Track Now
+              Track Now <Crosshair size={20} />
             </button>
           </form>
+
+          <div className="mt-8 pt-6 border-t border-[#f1f4f3] flex flex-wrap justify-center gap-4 sm:gap-8 text-[10px] font-bold text-[#4f6073] uppercase tracking-widest">
+            <span className="flex items-center gap-1.5">
+              <ShieldCheck size={15} className="text-[#006a62]" /> Securely Stored
+            </span>
+            <span className="flex items-center gap-1.5">
+              <Truck size={15} className="text-[#ff9800]" /> Courier En Route
+            </span>
+            <span className="flex items-center gap-1.5">
+              <HeadphonesIcon size={15} className="text-[#006a62]" /> 24/7 Live Support
+            </span>
+          </div>
         </motion.div>
       </div>
     );
   }
 
+  // ── Tracking results view ──────────────────────────────────────────────
   const steps = [
-    { id: 'created',    label: 'Registered', icon: <Clock size={18} /> },
-    { id: 'picked_up',  label: 'Collected',  icon: <Package size={18} /> },
-    { id: 'in_transit', label: 'In Transit', icon: <Truck size={18} /> },
-    { id: 'delivered',  label: 'Delivered',  icon: <CheckCircle2 size={18} /> },
+    { id: 'created',    label: 'Registered', icon: <Clock size={20} /> },
+    { id: 'picked_up',  label: 'Collected',  icon: <Package size={20} /> },
+    { id: 'in_transit', label: 'In Transit', icon: <Truck size={20} /> },
+    { id: 'delivered',  label: 'Delivered',  icon: <CheckCircle2 size={20} /> },
   ];
 
   const currentStepIndex = steps.findIndex(s => s.id === booking.bookingStatus);
   const activeIndex      = currentStepIndex === -1 ? 0 : currentStepIndex;
 
   return (
-    <div className="min-h-screen bg-surface py-20 px-6">
+    <div className="min-h-screen bg-[#f7faf9] font-['Plus_Jakarta_Sans'] py-24 px-4 sm:px-6 md:px-8 text-[#181c1c]">
       <div className="max-w-7xl mx-auto">
-        <header className="mb-16">
-          <div className="flex items-center gap-3 mb-2">
-            <div className="w-2 h-2 rounded-full bg-secondary" />
-            <span className="text-[10px] font-bold uppercase tracking-widest text-navy/40">Live Tracking</span>
+
+        <header className="mb-12 text-center md:text-left">
+          <div className="flex items-center justify-center md:justify-start gap-3 mb-3">
+            <div className="w-2 h-2 rounded-full bg-[#ff9800] animate-pulse" />
+            <span className="text-[10px] font-bold uppercase tracking-widest text-[#4f6073]">Live Tracking</span>
           </div>
-          <h1 className="text-5xl font-bold display text-navy">Package Tracking</h1>
+          <h1 className="text-3xl sm:text-4xl md:text-5xl font-extrabold text-[#181c1c] tracking-tight">
+            Package Tracking
+          </h1>
         </header>
 
-        {/* Horizontal Progress */}
-        <div className="bg-white p-12 rounded-[2.5rem] shadow-soft border border-navy/5 mb-12">
-          <div className="relative flex justify-between">
-            <div className="absolute top-1/2 left-0 w-full h-0.5 bg-navy/5 -translate-y-1/2 -z-10" />
+        {/* Progress stepper */}
+        <div className="bg-white p-6 sm:p-8 md:p-12 rounded-[2rem] shadow-[0_15px_30px_-5px_rgba(0,106,98,0.15)] border border-[#006a62]/5 mb-10">
+          <div className="relative flex justify-between max-w-4xl mx-auto px-2 md:px-8">
+            <div className="absolute top-1/2 left-0 w-full h-1 bg-[#78f7e8]/40 -translate-y-1/2 z-0" />
             <div
-              className="absolute top-1/2 left-0 h-0.5 bg-secondary -translate-y-1/2 -z-10 transition-all duration-1000"
+              className="absolute top-1/2 left-0 h-1 bg-[#006a62] -translate-y-1/2 z-0 transition-all duration-1000"
               style={{ width: `${(activeIndex / (steps.length - 1)) * 100}%` }}
             />
 
             {steps.map((step, i) => (
-              <div key={step.id} className="flex flex-col items-center gap-4">
-                <div className={`w-12 h-12 rounded-2xl flex items-center justify-center transition-all ${
-                  i < activeIndex  ? 'bg-secondary text-white' :
-                  i === activeIndex ? 'bg-white border-2 border-secondary text-secondary shadow-lg' :
-                                      'bg-surface text-navy/20'
+              <div key={step.id} className="flex flex-col items-center gap-3 z-10 w-16 md:w-24">
+                <div className={`w-11 h-11 md:w-14 md:h-14 rounded-full flex items-center justify-center transition-all duration-500 ${
+                  i < activeIndex  ? 'bg-[#006a62] text-white shadow-md'                              :
+                  i === activeIndex ? 'bg-white border-4 border-[#006a62] text-[#006a62] shadow-lg scale-110' :
+                                      'bg-white border-2 border-[#78f7e8] text-[#a1b2c8]'
                 }`}>
                   {step.icon}
                 </div>
                 <div className="text-center">
-                  <p className={`text-[10px] font-bold uppercase tracking-widest ${i <= activeIndex ? 'text-navy' : 'text-navy/20'}`}>
+                  <p className={`text-[9px] md:text-[10px] font-bold uppercase tracking-widest ${
+                    i <= activeIndex ? 'text-[#181c1c]' : 'text-[#a1b2c8]'
+                  }`}>
                     {step.label}
                   </p>
                   {i === activeIndex && (
-                    <p className="text-[9px] text-secondary font-bold uppercase mt-1 animate-pulse">In Progress</p>
+                    <p className="text-[8px] md:text-[9px] text-[#ff9800] font-bold uppercase mt-1 animate-pulse">
+                      In Progress
+                    </p>
                   )}
                 </div>
               </div>
@@ -183,58 +255,71 @@ const Tracking: React.FC = () => {
           </div>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-12">
-          {/* Main Map/Status View */}
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12">
+
+          {/* Main column */}
           <div className="lg:col-span-8 space-y-8">
-            <div className="aspect-video bg-[#0a121d] rounded-[2.5rem] overflow-hidden relative border border-navy/5">
-              <div className="absolute inset-0 opacity-40 mix-blend-luminosity grayscale">
+
+            {/* Map placeholder */}
+            <div className="aspect-video bg-[#0a121d] rounded-[2rem] overflow-hidden relative shadow-lg">
+              <div className="absolute inset-0 opacity-50 mix-blend-luminosity grayscale">
                 <img
                   src="https://images.unsplash.com/photo-1524661135-423995f22d0b?q=80&w=2074"
-                  alt="Malta Map"
+                  alt="Malta map"
                   className="w-full h-full object-cover"
                 />
               </div>
-              <div className="absolute inset-0 bg-gradient-to-t from-navy via-navy/20 to-transparent" />
-
-              <div className="absolute bottom-10 left-10 p-4 bg-white/10 backdrop-blur rounded-2xl border border-white/20 flex items-center gap-4">
-                <div className="w-10 h-10 bg-secondary rounded-xl flex items-center justify-center text-white">
-                  <Truck size={20} className="animate-bounce" />
+              <div className="absolute inset-0 bg-gradient-to-t from-[#0a121d] via-[#0a121d]/40 to-transparent" />
+              <div className="absolute bottom-5 sm:bottom-10 left-5 sm:left-10 p-4 bg-white/10 backdrop-blur-md rounded-2xl border border-white/20 flex items-center gap-4">
+                <div className="w-11 h-11 bg-[#ff9800] rounded-xl flex items-center justify-center text-white shadow-lg shrink-0">
+                  <Truck size={22} className="animate-bounce" />
                 </div>
                 <div>
-                  <p className="text-[10px] font-bold text-white/60 uppercase tracking-widest">Last Update</p>
-                  <p className="text-sm font-bold text-white">Valletta Logistics Hub • 2m ago</p>
+                  <p className="text-[10px] font-bold text-white/70 uppercase tracking-widest">Last Update</p>
+                  <p className="text-sm font-bold text-white">Valletta Logistics Hub · 2m ago</p>
                 </div>
               </div>
             </div>
 
-            {/* Timeline */}
-            <div className="bg-white p-10 rounded-[2.5rem] shadow-soft border border-navy/5">
-              <h3 className="text-xl font-bold display text-navy mb-8">Detailed History</h3>
-              <div className="space-y-8 relative before:absolute before:left-3 before:top-2 before:bottom-2 before:w-px before:bg-navy/5">
+            {/* Event timeline */}
+            <div className="bg-white p-6 sm:p-8 md:p-10 rounded-[2rem] shadow-[0_15px_30px_-5px_rgba(0,106,98,0.15)] border border-[#006a62]/5">
+              <h3 className="text-xl sm:text-2xl font-bold text-[#181c1c] mb-8">Detailed History</h3>
+              <div className="space-y-8 relative before:absolute before:left-3.5 before:top-2 before:bottom-2 before:w-0.5 before:bg-[#78f7e8]/50">
+
                 {events.length > 0 ? events.map((event, i) => (
-                  <div key={event.id} className="relative pl-10">
-                    <div className={`absolute left-0 top-1.5 w-6 h-6 rounded-full border-4 border-white shadow-sm ${i === 0 ? 'bg-secondary' : 'bg-navy/10'}`} />
-                    <div className="flex justify-between items-start">
+                  <div key={event.id} className="relative pl-12">
+                    <div className={`absolute left-0 top-1.5 w-7 h-7 rounded-full border-4 border-white shadow-sm ${
+                      i === 0 ? 'bg-[#ff9800]' : 'bg-[#e0e3e2]'
+                    }`} />
+                    <div className="flex flex-col md:flex-row md:justify-between md:items-start gap-2">
                       <div>
-                        <h4 className={`text-sm font-bold uppercase tracking-tight ${i === 0 ? 'text-navy' : 'text-navy/40'}`}>
+                        <h4 className={`text-sm font-bold uppercase tracking-tight ${
+                          i === 0 ? 'text-[#181c1c]' : 'text-[#4f6073]'
+                        }`}>
                           {(event.status ?? '').replace(/_/g, ' ')}
                         </h4>
-                        <p className="text-xs text-navy/40 mt-1">{event.location?.address || 'Status updated'}</p>
+                        <p className="text-xs text-[#4f6073] mt-1">
+                          {event.location?.address || 'Status updated'}
+                        </p>
                       </div>
-                      <span className="text-[10px] font-bold text-navy/20 uppercase tracking-widest">
-                        {format(event.timestamp?.toDate?.() ?? new Date(), 'h:mm a')}
+                      <span className="text-[10px] font-bold text-[#a1b2c8] uppercase tracking-widest md:text-right shrink-0">
+                        {formatDate(event.timestamp, 'MMM d, h:mm a')}
                       </span>
                     </div>
                   </div>
                 )) : (
-                  <div className="relative pl-10">
-                    <div className="absolute left-0 top-1.5 w-6 h-6 rounded-full bg-secondary border-4 border-white shadow-sm" />
-                    <div className="flex justify-between items-start">
+                  <div className="relative pl-12">
+                    <div className="absolute left-0 top-1.5 w-7 h-7 rounded-full bg-[#006a62] border-4 border-white shadow-sm" />
+                    <div className="flex flex-col md:flex-row justify-between items-start gap-2">
                       <div>
-                        <h4 className="text-sm font-bold uppercase tracking-tight text-navy">Reservation Confirmed</h4>
-                        <p className="text-xs text-navy/40 mt-1">Waiting for courier assignment</p>
+                        <h4 className="text-sm font-bold uppercase tracking-tight text-[#181c1c]">
+                          Reservation Confirmed
+                        </h4>
+                        <p className="text-xs text-[#4f6073] mt-1">Waiting for courier assignment</p>
                       </div>
-                      <span className="text-[10px] font-bold text-navy/20 uppercase tracking-widest">JUST NOW</span>
+                      <span className="text-[10px] font-bold text-[#006a62] uppercase tracking-widest">
+                        JUST NOW
+                      </span>
                     </div>
                   </div>
                 )}
@@ -242,41 +327,57 @@ const Tracking: React.FC = () => {
             </div>
           </div>
 
-          {/* Sidebar Details */}
+          {/* Sidebar */}
           <aside className="lg:col-span-4 space-y-8">
-            <div className="bg-white p-10 rounded-[2.5rem] shadow-soft border border-navy/5">
-              <h3 className="text-lg font-bold text-navy mb-8">Booking Details</h3>
+
+            {/* Booking details card */}
+            <div className="bg-white p-6 sm:p-8 md:p-10 rounded-[2rem] shadow-[0_15px_30px_-5px_rgba(0,106,98,0.15)] border border-[#006a62]/5">
+              <h3 className="text-lg sm:text-xl font-bold text-[#181c1c] mb-7">Booking Details</h3>
               <div className="space-y-6">
                 <div>
-                  <p className="text-[10px] font-bold uppercase tracking-widest text-navy/40 mb-2">Booking Reference</p>
-                  <p className="text-2xl font-bold display text-navy uppercase">{booking.bookingCode}</p>
+                  <p className="text-[10px] font-bold uppercase tracking-widest text-[#4f6073] mb-2">
+                    Booking Reference
+                  </p>
+                  <p className="text-2xl sm:text-3xl font-extrabold text-[#006a62] uppercase break-all">
+                    {booking.bookingCode}
+                  </p>
                 </div>
-                <div className="h-px bg-navy/5" />
+                <div className="h-px bg-[#f1f4f3]" />
                 <div>
-                  <p className="text-[10px] font-bold uppercase tracking-widest text-navy/40 mb-3">Service Statistics</p>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="bg-surface p-4 rounded-xl">
-                      <p className="text-lg font-bold display text-navy">{booking.numberOfBags}</p>
-                      <p className="text-[10px] font-bold text-navy/40 uppercase">Items</p>
+                  <p className="text-[10px] font-bold uppercase tracking-widest text-[#4f6073] mb-3">
+                    Service Statistics
+                  </p>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="bg-[#f7faf9] p-4 rounded-xl border border-[#e0e3e2]">
+                      <p className="text-xl font-extrabold text-[#181c1c]">{booking.numberOfBags}</p>
+                      <p className="text-[10px] font-bold text-[#8b5000] uppercase mt-1">Items</p>
                     </div>
-                    <div className="bg-surface p-4 rounded-xl">
-                      <p className="text-lg font-bold display text-navy">€{booking.totalPrice}</p>
-                      <p className="text-[10px] font-bold text-navy/40 uppercase">Insured</p>
+                    <div className="bg-[#f7faf9] p-4 rounded-xl border border-[#e0e3e2]">
+                      <p className="text-xl font-extrabold text-[#181c1c]">€{booking.totalPrice}</p>
+                      <p className="text-[10px] font-bold text-[#006a62] uppercase mt-1">Insured</p>
                     </div>
                   </div>
                 </div>
               </div>
             </div>
 
-            <div className="bg-primary p-10 rounded-[2.5rem] text-white">
-              <ShieldCheck className="mb-6 opacity-60" size={32} />
-              <h3 className="text-xl font-bold display mb-4 italic">Platinum Care</h3>
-              <p className="text-white/70 text-sm leading-relaxed mb-8 font-medium">
-                Your items are covered by our premium insurance up to €1,500 and tracked via GPS 24/7.
-              </p>
-              <button className="w-full py-4 bg-white text-navy rounded-xl font-bold text-xs uppercase tracking-widest hover:bg-navy hover:text-white transition-all">
-                Support Center
-              </button>
+            {/* Platinum care card */}
+            <div className="bg-[#8b5000] p-8 sm:p-10 rounded-[2rem] text-center relative overflow-hidden shadow-2xl">
+              <div className="absolute top-0 right-0 w-48 h-48 bg-[#ff9800]/20 rounded-full blur-3xl -mr-24 -mt-24" />
+              <div className="absolute bottom-0 left-0 w-48 h-48 bg-[#006a62]/20 rounded-full blur-3xl -ml-24 -mb-24" />
+              <div className="relative z-10 flex flex-col items-center">
+                <ShieldCheck className="mb-5 text-[#ff9800]" size={34} />
+                <h3 className="text-xl sm:text-2xl font-bold text-white mb-3">Platinum Care</h3>
+                <p className="text-white/80 text-sm leading-relaxed mb-7">
+                  Your items are covered by our premium insurance up to €1,500 and tracked via GPS 24/7.
+                </p>
+                <button
+                  type="button"
+                  className="w-full py-4 bg-white/10 backdrop-blur-md text-white border border-white/20 rounded-xl font-bold text-xs uppercase tracking-widest hover:bg-white/20 transition-all"
+                >
+                  Support Center
+                </button>
+              </div>
             </div>
           </aside>
         </div>
