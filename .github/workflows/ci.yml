@@ -96,10 +96,6 @@ jobs:
     # Solo corre cuando es un PR hacia main, no en pushes directos
     if: github.event_name == 'pull_request' && github.base_ref == 'main'
 
-    defaults:
-      run:
-        working-directory: frontend
-
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -112,9 +108,11 @@ jobs:
           cache-dependency-path: frontend/package-lock.json
 
       - name: Install dependencies
+        working-directory: frontend
         run: npm ci
 
       - name: Build con variables reales
+        working-directory: frontend
         run: npm run build
         env:
           VITE_FIREBASE_API_KEY: ${{ secrets.VITE_FIREBASE_API_KEY }}
@@ -128,6 +126,9 @@ jobs:
       - name: Instalar Vercel CLI
         run: npm install -g vercel@latest
 
+      # Vercel CLI corre desde la RAÍZ del repo porque ya tiene
+      # configurado 'frontend' como root directory en sus settings.
+      # Si correra desde /frontend, buscaría /frontend/frontend (duplicado).
       - name: Deploy Preview en Vercel (sin publicar a producción)
         run: vercel deploy --yes --token=${{ secrets.VERCEL_TOKEN }}
         env:
