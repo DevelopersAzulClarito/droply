@@ -1,40 +1,18 @@
 import React, { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import {
-  ShieldCheck, Package, Users, LogOut, ChevronDown,
-  MoreHorizontal, RefreshCw, Search, X, Check, Truck,
+  Package, Users, LogOut, ChevronDown,
+  MoreHorizontal, Search, X, Check, Truck,
 } from 'lucide-react';
-import {
-  collection, onSnapshot, doc, updateDoc, query, orderBy, getDocs,
-} from 'firebase/firestore';
+import { onSnapshot, collection, query, orderBy } from 'firebase/firestore';
 import { signOut } from 'firebase/auth';
 import { auth, db } from '../../config/firebase';
 import { useAuth } from '../../hooks/useAuth';
 import { useNavigate } from 'react-router-dom';
+import { updateBookingStatus, assignKeeper as assignKeeperSvc } from '../../services/bookingService';
+import type { Booking, User as AppUser, BookingStatus, UserRole } from '../../types';
 
-/* ── types ────────────────────────────────────────────────────────────────── */
-type BookingStatus = 'pending' | 'confirmed' | 'picked_up' | 'in_transit' | 'delivered';
-type UserRole      = 'customer' | 'keeper' | 'admin';
-
-interface Booking {
-  id: string;
-  customerName?: string;
-  customerEmail?: string;
-  pickupAddress?: string;
-  deliveryAddress?: string;
-  status: BookingStatus;
-  keeperId?: string;
-  keeperName?: string;
-  createdAt?: { seconds: number } | null;
-}
-
-interface AppUser {
-  id: string;
-  name?: string;
-  email?: string;
-  role: UserRole;
-  createdAt?: { seconds: number } | null;
-}
+// Types are imported from ../../types
 
 /* ── helpers ──────────────────────────────────────────────────────────────── */
 const STATUS_LABELS: Record<BookingStatus, string> = {
@@ -42,7 +20,9 @@ const STATUS_LABELS: Record<BookingStatus, string> = {
   confirmed:  'Confirmed',
   picked_up:  'Picked Up',
   in_transit: 'In Transit',
+  stored:     'Stored',
   delivered:  'Delivered',
+  cancelled:  'Cancelled',
 };
 
 const STATUS_COLORS: Record<BookingStatus, string> = {
@@ -50,7 +30,9 @@ const STATUS_COLORS: Record<BookingStatus, string> = {
   confirmed:  'bg-blue-100 text-blue-700',
   picked_up:  'bg-purple-100 text-purple-700',
   in_transit: 'bg-indigo-100 text-indigo-700',
+  stored:     'bg-orange-100 text-orange-700',
   delivered:  'bg-emerald-100 text-emerald-700',
+  cancelled:  'bg-red-100 text-red-600',
 };
 
 const ROLE_COLORS: Record<UserRole, string> = {
@@ -102,20 +84,18 @@ const AdminDashboard: React.FC = () => {
 
   /* ── actions ────────────────────────────────────────────────────────────── */
   const updateStatus = async (bookingId: string, status: BookingStatus) => {
-    await updateDoc(doc(db, 'bookings', bookingId), { status });
+    await updateBookingStatus(bookingId, status);
     setStatusOpen(null);
   };
 
   const assignKeeper = async (bookingId: string, keeper: AppUser) => {
-    await updateDoc(doc(db, 'bookings', bookingId), {
-      keeperId:   keeper.id,
-      keeperName: keeper.name ?? keeper.email ?? keeper.id,
-    });
+    await assignKeeperSvc(bookingId, keeper.id);
     setKeeperOpen(null);
   };
 
   const updateRole = async (userId: string, role: UserRole) => {
-    await updateDoc(doc(db, 'users', userId), { role });
+    const { doc: firestoreDoc, updateDoc } = await import('firebase/firestore');
+    await updateDoc(firestoreDoc(db, 'users', userId), { role });
     setRoleOpen(null);
   };
 
@@ -127,9 +107,10 @@ const AdminDashboard: React.FC = () => {
   /* ── filtered lists ─────────────────────────────────────────────────────── */
   const filteredBookings = bookings.filter(b =>
     !search ||
-    b.customerName?.toLowerCase().includes(search.toLowerCase()) ||
-    b.customerEmail?.toLowerCase().includes(search.toLowerCase()) ||
-    b.pickupAddress?.toLowerCase().includes(search.toLowerCase())
+    b.name?.toLowerCase().includes(search.toLowerCase()) ||
+    b.email?.toLowerCase().includes(search.toLowerCase()) ||
+    b.pickup?.toLowerCase().includes(search.toLowerCase()) ||
+    b.bookingCode?.toLowerCase().includes(search.toLowerCase())
   );
 
   const filteredUsers = users.filter(u =>
@@ -256,14 +237,14 @@ const AdminDashboard: React.FC = () => {
                         >
                           {/* customer */}
                           <td className="px-5 py-4">
-                            <p className="text-sm font-bold text-navy">{b.customerName ?? '—'}</p>
-                            <p className="text-xs text-navy/40">{b.customerEmail ?? ''}</p>
+                            <p className="text-sm font-bold text-navy">{b.name ?? '—'}</p>
+                            <p className="text-xs text-navy/40">{b.email ?? ''}</p>
                           </td>
 
                           {/* route */}
                           <td className="px-5 py-4 max-w-[200px]">
-                            <p className="text-xs text-navy/60 truncate">{b.pickupAddress ?? '—'}</p>
-                            <p className="text-xs text-navy/30 truncate">→ {b.deliveryAddress ?? '—'}</p>
+                            <p className="text-xs text-navy/60 truncate">{b.pickup ?? '—'}</p>
+                            <p className="text-xs text-navy/30 truncate">→ {b.dropoff ?? '—'}</p>
                           </td>
 
                           {/* status dropdown */}
@@ -308,7 +289,9 @@ const AdminDashboard: React.FC = () => {
                                 className="flex items-center gap-1.5 text-xs font-bold text-navy/50 hover:text-navy transition-colors"
                               >
                                 <Truck size={12} />
-                                {b.keeperName ?? 'Assign'}
+                                {b.assignedKeeper
+                                  ? (keepers.find(k => k.id === b.assignedKeeper)?.name ?? b.assignedKeeper)
+                                  : 'Assign'}
                                 <ChevronDown size={11} />
                               </button>
                               <AnimatePresence>
@@ -326,10 +309,10 @@ const AdminDashboard: React.FC = () => {
                                         <button
                                           key={k.id}
                                           onClick={() => assignKeeper(b.id, k)}
-                                          className={`w-full flex items-center justify-between px-4 py-2.5 text-xs font-bold hover:bg-surface transition-colors ${b.keeperId === k.id ? 'text-secondary' : 'text-navy/60'}`}
+                                          className={`w-full flex items-center justify-between px-4 py-2.5 text-xs font-bold hover:bg-surface transition-colors ${b.assignedKeeper === k.id ? 'text-secondary' : 'text-navy/60'}`}
                                         >
                                           <span>{k.name ?? k.email ?? k.id}</span>
-                                          {b.keeperId === k.id && <Check size={12} />}
+                                          {b.assignedKeeper === k.id && <Check size={12} />}
                                         </button>
                                       ))
                                     )}

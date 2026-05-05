@@ -5,17 +5,16 @@ import {
   doc, onSnapshot, collection, query,
   orderBy, where, limit, getDocs,
 } from 'firebase/firestore';
-import type { FirestoreError } from 'firebase/firestore';
 import { motion } from 'motion/react';
 import { Package, CheckCircle2, Clock, Truck, ShieldCheck, Crosshair, HeadphonesIcon } from 'lucide-react';
 import { formatDate } from '../utils/formatters';
-import type { FirestoreBooking, TrackingEvent } from '../types';
+import type { Booking, TrackingEvent } from '../types';
 
 const Tracking: React.FC = () => {
   const { bookingId } = useParams();
   const navigate = useNavigate();
 
-  const [booking, setBooking]   = useState<FirestoreBooking | null>(null);
+  const [booking, setBooking]   = useState<Booking | null>(null);
   const [events, setEvents]     = useState<TrackingEvent[]>([]);
   const [loading, setLoading]   = useState(true);
   const [searchId, setSearchId] = useState('');
@@ -31,8 +30,7 @@ const Tracking: React.FC = () => {
     setLoading(true);
     setError(null);
 
-    // Helper: search by human-readable booking code and redirect to real doc ID.
-    // Using getDocs (one-time) avoids nested onSnapshot that leaks listeners.
+    // Search by bookingCode (NEW schema: bookingCode field) and redirect to real doc ID.
     const searchByCode = (code: string) => {
       getDocs(
         query(
@@ -43,8 +41,6 @@ const Tracking: React.FC = () => {
       )
         .then((snap) => {
           if (!snap.empty) {
-            // Navigate to the actual Firestore doc ID so the next mount
-            // subscribes to real-time updates on the correct document.
             navigate(`/track/${snap.docs[0].id}`, { replace: true });
           } else {
             setBooking(null);
@@ -62,36 +58,31 @@ const Tracking: React.FC = () => {
       doc(db, 'bookings', bookingId),
       (snapshot) => {
         if (snapshot.exists()) {
-          setBooking({ id: snapshot.id, ...snapshot.data() } as FirestoreBooking);
+          setBooking({ id: snapshot.id, ...snapshot.data() } as Booking);
           setLoading(false);
         } else {
           // Direct doc lookup returned nothing — try by booking code.
           searchByCode(bookingId);
         }
       },
-      (err: FirestoreError) => {
-        // permission-denied fires when: user is not logged in, the doc belongs
-        // to someone else, or the ID looks valid but rules reject it.
-        // Fall back to a code search before giving up.
-        if (err.code === 'permission-denied' || err.code === 'unauthenticated') {
-          searchByCode(bookingId);
-        } else {
-          setError('Could not load tracking information. Please try again.');
-          setLoading(false);
-        }
+      () => {
+        // Any error (offline, invalid ID format, etc.) → try code search
+        searchByCode(bookingId);
       },
     );
 
     return () => unsubBooking();
   }, [bookingId, navigate]);
 
-  // ── Tracking events subscription ───────────────────────────────────────
+  // ── Tracking events subscription (NEW: top-level collection) ──────────
   useEffect(() => {
     if (!booking?.id) return;
 
+    // NEW schema: top-level /trackingEvents filtered by bookingId
     const unsubEvents = onSnapshot(
       query(
-        collection(db, `bookings/${booking.id}/trackingEvents`),
+        collection(db, 'trackingEvents'),
+        where('bookingId', '==', booking.id),
         orderBy('timestamp', 'desc'),
       ),
       (snapshot) => {
@@ -155,7 +146,7 @@ const Tracking: React.FC = () => {
                 <input
                   id="trackSearch"
                   type="text"
-                  placeholder="e.g. DL-8829"
+                  placeholder="e.g. DRP-A3X9"
                   className="w-full h-14 pl-12 pr-5 bg-white rounded-xl border border-[#e0e3e2] focus:border-[#006a62] focus:ring-2 focus:ring-[#006a62]/20 outline-none font-bold tracking-widest uppercase text-[#181c1c] placeholder:text-[#a1b2c8] transition-all"
                   value={searchId}
                   onChange={(e) => setSearchId(e.target.value)}
@@ -197,13 +188,14 @@ const Tracking: React.FC = () => {
 
   // ── Tracking results view ──────────────────────────────────────────────
   const steps = [
-    { id: 'created',    label: 'Registered', icon: <Clock size={20} /> },
+    { id: 'pending',    label: 'Registered', icon: <Clock size={20} /> },
     { id: 'picked_up',  label: 'Collected',  icon: <Package size={20} /> },
     { id: 'in_transit', label: 'In Transit', icon: <Truck size={20} /> },
     { id: 'delivered',  label: 'Delivered',  icon: <CheckCircle2 size={20} /> },
   ];
 
-  const currentStepIndex = steps.findIndex(s => s.id === booking.bookingStatus);
+  // NEW schema: status (not bookingStatus)
+  const currentStepIndex = steps.findIndex(s => s.id === booking.status);
   const activeIndex      = currentStepIndex === -1 ? 0 : currentStepIndex;
 
   return (
@@ -299,9 +291,10 @@ const Tracking: React.FC = () => {
                           {(event.status ?? '').replace(/_/g, ' ')}
                         </h4>
                         <p className="text-xs text-[#4f6073] mt-1">
-                          {event.location?.address || 'Status updated'}
+                          Updated by courier
                         </p>
                       </div>
+                      {/* NEW schema: timestamp (same field name) */}
                       <span className="text-[10px] font-bold text-[#a1b2c8] uppercase tracking-widest md:text-right shrink-0">
                         {formatDate(event.timestamp, 'MMM d, h:mm a')}
                       </span>
@@ -349,11 +342,13 @@ const Tracking: React.FC = () => {
                   </p>
                   <div className="grid grid-cols-2 gap-3">
                     <div className="bg-[#f7faf9] p-4 rounded-xl border border-[#e0e3e2]">
-                      <p className="text-xl font-extrabold text-[#181c1c]">{booking.numberOfBags}</p>
+                      {/* NEW schema: bags (not numberOfBags) */}
+                      <p className="text-xl font-extrabold text-[#181c1c]">{booking.bags}</p>
                       <p className="text-[10px] font-bold text-[#8b5000] uppercase mt-1">Items</p>
                     </div>
                     <div className="bg-[#f7faf9] p-4 rounded-xl border border-[#e0e3e2]">
-                      <p className="text-xl font-extrabold text-[#181c1c]">€{booking.totalPrice}</p>
+                      {/* NEW schema: price (not totalPrice) */}
+                      <p className="text-xl font-extrabold text-[#181c1c]">€{booking.price}</p>
                       <p className="text-[10px] font-bold text-[#006a62] uppercase mt-1">Insured</p>
                     </div>
                   </div>

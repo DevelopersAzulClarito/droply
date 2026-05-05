@@ -1,10 +1,9 @@
 {
-  "projectId": "cotizador-ea093",
-  "appId": "1:979710337792:web:92c7dc22a89a9529f5c9e5",
-  "apiKey": "AIzaSyAjOVJn4BVg6fs66Rw481nPJ9sJsYVlF68",
-  "authDomain": "cotizador-ea093.firebaseapp.com",
-  "firestoreDatabaseId": "ai-studio-338159d5-43b4-4131-8bc6-db0d3cc6bb9b",
-  "storageBucket": "cotizador-ea093.firebasestorage.app",
-  "messagingSenderId": "979710337792",
-  "measurementId": ""
+  "projectId": "droply-az",
+  "appId": "1:1061597839747:web:f2c5bbc8a13449b89476b6",
+  "apiKey": "AIzaSyAUrFsUY3l1tvL8sS1WR34wR0lFQLTZxaE",
+  "authDomain": "droply-az.firebaseapp.com",
+  "storageBucket": "droply-az.firebasestorage.app",
+  "messagingSenderId": "1061597839747",
+  "measurementId": "G-MJZBPM1GSK"
 }

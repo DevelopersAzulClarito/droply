@@ -1,8 +1,11 @@
 import React, { useEffect, useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { db } from '../config/firebase';
-import { collection, query, where, onSnapshot, orderBy, type Query, type DocumentData } from 'firebase/firestore';
-import type { FirestoreBooking } from '../types';
+import {
+  collection, query, where, onSnapshot, orderBy,
+  type Query, type DocumentData,
+} from 'firebase/firestore';
+import type { Booking } from '../types';
 import { Link } from 'react-router-dom';
 import { motion } from 'motion/react';
 import { Package, Clock, CreditCard, MapPin, ArrowRight, ShieldCheck, Leaf } from 'lucide-react';
@@ -10,18 +13,28 @@ import { formatDate, formatStatus, statusBadgeClass, getProgressFromStatus } fro
 
 const Dashboard: React.FC = () => {
   const { user, role } = useAuth();
-  const [bookings, setBookings] = useState<FirestoreBooking[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [bookings, setBookings] = useState<Booking[]>([]);
+  const [loading, setLoading]   = useState(true);
+  const [error, setError]       = useState<string | null>(null);
 
   useEffect(() => {
     if (!user || !role) return;
 
     let q: Query<DocumentData>;
+
     if (role === 'customer') {
-      q = query(collection(db, 'bookings'), where('customerId', '==', user.uid), orderBy('createdAt', 'desc'));
+      // Query by email — present on ALL bookings (old and new schema)
+      q = query(
+        collection(db, 'bookings'),
+        where('email', '==', user.email),
+        orderBy('createdAt', 'desc'),
+      );
     } else if (role === 'keeper') {
-      q = query(collection(db, 'bookings'), where('assignedKeeperId', '==', user.uid), orderBy('createdAt', 'desc'));
+      q = query(
+        collection(db, 'bookings'),
+        where('assignedKeeper', '==', user.uid),
+        orderBy('createdAt', 'desc'),
+      );
     } else {
       q = query(collection(db, 'bookings'), orderBy('createdAt', 'desc'));
     }
@@ -29,13 +42,15 @@ const Dashboard: React.FC = () => {
     const unsubscribe = onSnapshot(
       q,
       (snapshot) => {
-        setBookings(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as FirestoreBooking)));
+        setBookings(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Booking)));
+        setError(null);   // clear any previous error when data arrives
         setLoading(false);
       },
-      () => {
+      (err) => {
+        console.error('Bookings snapshot error:', err);
         setError('Failed to load bookings. Please refresh.');
         setLoading(false);
-      }
+      },
     );
 
     return unsubscribe;
@@ -51,7 +66,8 @@ const Dashboard: React.FC = () => {
   const stats = [
     {
       label: 'Total Spent',
-      value: `€${bookings.reduce((acc, b) => acc + (b.totalPrice || 0), 0).toFixed(2)}`,
+      // NEW schema: price field
+      value: `€${bookings.reduce((acc, b) => acc + (b.price || 0), 0).toFixed(2)}`,
       icon: <CreditCard size={32} />,
     },
     {
@@ -66,7 +82,8 @@ const Dashboard: React.FC = () => {
     },
   ];
 
-  const activeBookings = bookings.filter(b => b.bookingStatus !== 'delivered');
+  // NEW schema: status field (not bookingStatus)
+  const activeBookings = bookings.filter(b => b.status !== 'delivered' && b.status !== 'cancelled');
 
   return (
     <div className="min-h-screen bg-[#f7faf9] py-24 px-6 md:px-8 font-['Plus_Jakarta_Sans'] text-[#181c1c]">
@@ -178,12 +195,14 @@ const Dashboard: React.FC = () => {
                           <td className="px-8 py-6 text-sm text-[#4f6073]">
                             {formatDate(booking.createdAt)}
                           </td>
+                          {/* NEW schema: bags (not numberOfBags) */}
                           <td className="px-8 py-6 text-sm text-[#554434] font-bold">
-                            {booking.numberOfBags} Items
+                            {booking.bags} Items
                           </td>
                           <td className="px-8 py-6">
-                            <span className={`px-3 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-widest ${statusBadgeClass(booking.bookingStatus)}`}>
-                              {formatStatus(booking.bookingStatus)}
+                            {/* NEW schema: status (not bookingStatus) */}
+                            <span className={`px-3 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-widest ${statusBadgeClass(booking.status)}`}>
+                              {formatStatus(booking.status)}
                             </span>
                           </td>
                           <td className="px-8 py-6 text-right">
@@ -214,9 +233,9 @@ const Dashboard: React.FC = () => {
                         <p className="font-bold text-[#181c1c] text-sm uppercase tracking-tight truncate">
                           {booking.bookingCode ?? '—'}
                         </p>
-                        <p className="text-xs text-[#4f6073]">{formatDate(booking.createdAt)} · {booking.numberOfBags} bags</p>
-                        <span className={`inline-block px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest ${statusBadgeClass(booking.bookingStatus)}`}>
-                          {formatStatus(booking.bookingStatus)}
+                        <p className="text-xs text-[#4f6073]">{formatDate(booking.createdAt)} · {booking.bags} bags</p>
+                        <span className={`inline-block px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest ${statusBadgeClass(booking.status)}`}>
+                          {formatStatus(booking.status)}
                         </span>
                       </div>
                       <Link
@@ -305,25 +324,30 @@ const Dashboard: React.FC = () => {
   );
 };
 
-const ActiveBookingCard: React.FC<{ booking: FirestoreBooking }> = ({ booking }) => {
-  const progress = getProgressFromStatus(booking.bookingStatus);
+// ── ActiveBookingCard ────────────────────────────────────────────────────────
+
+const ActiveBookingCard: React.FC<{ booking: Booking }> = ({ booking }) => {
+  // NEW schema: status (not bookingStatus)
+  const progress = getProgressFromStatus(booking.status);
 
   return (
     <div className="bg-white p-6 md:p-8 rounded-3xl shadow-[0_10px_30px_-5px_rgba(0,128,128,0.15)] border border-[#006a62]/5 flex flex-col md:flex-row items-center gap-6 md:gap-8 group hover:-translate-y-2 transition-all duration-300">
 
       <div className="w-16 h-16 bg-[#78f7e8]/30 rounded-2xl flex items-center justify-center text-[#006a62] group-hover:bg-[#ff9800] group-hover:text-[#653900] transition-colors relative shrink-0">
         <Package size={32} />
-        {(booking.numberOfBags ?? 0) > 1 && (
+        {/* NEW schema: bags (not numberOfBags) */}
+        {(booking.bags ?? 0) > 1 && (
           <span className="absolute -top-2 -right-2 bg-[#8b5000] text-white text-xs font-bold w-6 h-6 rounded-full flex items-center justify-center border-2 border-white shadow-sm">
-            {booking.numberOfBags}
+            {booking.bags}
           </span>
         )}
       </div>
 
       <div className="flex-1 space-y-4 w-full">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-2">
+          {/* NEW schema: pickup/dropoff are plain strings */}
           <h3 className="text-2xl font-bold text-[#181c1c] capitalize">
-            {(booking.serviceType ?? 'Standard Drop').replace(/_/g, ' ')}
+            {booking.pickup?.split(',')[0] ?? 'Transfer'}
           </h3>
           <span className="text-[10px] font-bold uppercase tracking-widest text-[#8b5000] bg-[#ffdcbe] px-4 py-1.5 rounded-full w-fit">
             Ref: {booking.bookingCode}
@@ -345,10 +369,10 @@ const ActiveBookingCard: React.FC<{ booking: FirestoreBooking }> = ({ booking })
           </div>
         </div>
 
-        {booking.dropoffLocation?.address && (
+        {booking.dropoff && (
           <div className="flex items-center gap-2 text-sm font-medium text-[#4f6073] pt-2">
             <MapPin size={18} className="text-[#ff9800]" />
-            <span>To: <strong className="text-[#181c1c]">{booking.dropoffLocation.address}</strong></span>
+            <span>To: <strong className="text-[#181c1c]">{booking.dropoff}</strong></span>
           </div>
         )}
       </div>

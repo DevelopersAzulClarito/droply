@@ -4,38 +4,32 @@ import { db } from '../config/firebase';
 import { useAuth } from '../hooks/useAuth';
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 import {
-  ShieldCheck, Check, ChevronDown, Calendar, Clock,
+  ShieldCheck, Check, Calendar, Clock,
   Minus, Plus, ArrowRight, MapPin, Package,
 } from 'lucide-react';
 import type { BookingFormData } from '../types';
 
 const PRICE_PER_BAG = 9;
 
-const SERVICE_LABELS: Record<string, string> = {
-  hotel_to_airport: 'Hotel to Airport Transfer',
-  airport_to_hotel: 'Airport to Hotel Transfer',
-  city_to_city:     'City-to-City Luggage Move',
-  short_storage:    'Short-term Storage',
-};
-
 const STEP_LABELS = ['Details', 'Delivery', 'Confirm'] as const;
 
 const INITIAL_FORM: BookingFormData = {
-  serviceType:     'hotel_to_airport',
-  pickupLocation:  '',
-  dropoffLocation: '',
-  pickupDate:      '',
-  pickupTime:      '',
-  numberOfBags:    1,
-  notes:           '',
+  name:    '',
+  phone:   '',
+  email:   '',
+  pickup:  '',
+  dropoff: '',
+  date:    '',
+  time:    '',
+  bags:    1,
 };
 
 function validateStep(step: number, data: BookingFormData): string | null {
   if (step === 2) {
-    if (!data.pickupLocation.trim())  return 'Pickup location is required.';
-    if (!data.dropoffLocation.trim()) return 'Dropoff location is required.';
-    if (!data.pickupDate)             return 'Pickup date is required.';
-    if (!data.pickupTime)             return 'Pickup time is required.';
+    if (!data.pickup.trim())  return 'Pickup location is required.';
+    if (!data.dropoff.trim()) return 'Dropoff location is required.';
+    if (!data.date)           return 'Pickup date is required.';
+    if (!data.time)           return 'Pickup time is required.';
   }
   return null;
 }
@@ -49,7 +43,7 @@ const Booking: React.FC = () => {
   const navigate = useNavigate();
   const { user }  = useAuth();
 
-  const totalPrice = formData.numberOfBags * PRICE_PER_BAG;
+  const totalPrice = formData.bags * PRICE_PER_BAG;
 
   const patch = (updates: Partial<BookingFormData>) =>
     setFormData(prev => ({ ...prev, ...updates }));
@@ -73,21 +67,21 @@ const Booking: React.FC = () => {
     setLoading(true);
     setError(null);
     try {
-      const bookingCode = 'DL-' + Math.floor(1000 + Math.random() * 9000);
+      const bookingCode = 'DRP-' + Math.random().toString(36).substring(2, 6).toUpperCase();
       const docRef = await addDoc(collection(db, 'bookings'), {
         bookingCode,
-        customerId:      user.uid,
-        serviceType:     formData.serviceType,
-        pickupLocation:  { address: formData.pickupLocation },
-        dropoffLocation: { address: formData.dropoffLocation },
-        pickupDateTime:  `${formData.pickupDate}T${formData.pickupTime}:00`,
-        numberOfBags:    formData.numberOfBags,
-        totalPrice,
-        currency:        'EUR',
-        bookingStatus:   'created',
-        paymentStatus:   'pending',
-        notes:           formData.notes,
-        createdAt:       serverTimestamp(),
+        customerId: user.uid,           // UID for secure Dashboard queries
+        name:      user.displayName ?? user.email ?? '',
+        phone:     '',
+        email:     user.email ?? '',
+        pickup:    formData.pickup,
+        dropoff:   formData.dropoff,
+        date:      formData.date,
+        time:      formData.time,
+        bags:      formData.bags,
+        price:     totalPrice,
+        status:    'pending',
+        createdAt: serverTimestamp(),
       });
       navigate(`/track/${docRef.id}`);
     } catch {
@@ -154,29 +148,10 @@ const Booking: React.FC = () => {
               </div>
             )}
 
-            {/* ── Step 1: Service type + bags ────────────────────────── */}
+            {/* ── Step 1: Bags ─────────────────────────────────────────── */}
             {step === 1 && (
               <div className="space-y-8">
                 <h2 className="text-2xl sm:text-3xl font-bold text-[#181c1c]">Service Details</h2>
-
-                <div className="space-y-3">
-                  <label htmlFor="serviceType" className="text-sm font-bold text-[#181c1c] block">
-                    Service Type
-                  </label>
-                  <div className="relative">
-                    <select
-                      id="serviceType"
-                      value={formData.serviceType}
-                      onChange={(e) => patch({ serviceType: e.target.value })}
-                      className="w-full bg-white border border-[#78f7e8] rounded-xl px-5 py-4 font-medium text-[#181c1c] focus:outline-none focus:ring-2 focus:ring-[#006a62]/20 focus:border-[#006a62] appearance-none cursor-pointer transition-all"
-                    >
-                      {Object.entries(SERVICE_LABELS).map(([val, label]) => (
-                        <option key={val} value={val}>{label}</option>
-                      ))}
-                    </select>
-                    <ChevronDown className="absolute right-5 top-1/2 -translate-y-1/2 text-[#887361] pointer-events-none" size={20} />
-                  </div>
-                </div>
 
                 <div className="space-y-3">
                   <label className="text-sm font-bold text-[#181c1c] block">Number of Bags</label>
@@ -185,20 +160,20 @@ const Booking: React.FC = () => {
                       <button
                         type="button"
                         aria-label="Remove one bag"
-                        disabled={formData.numberOfBags <= 1}
-                        onClick={() => patch({ numberOfBags: Math.max(1, formData.numberOfBags - 1) })}
+                        disabled={formData.bags <= 1}
+                        onClick={() => patch({ bags: Math.max(1, formData.bags - 1) })}
                         className="w-12 h-12 rounded-lg hover:bg-[#78f7e8]/30 disabled:opacity-40 flex items-center justify-center text-[#006a62] transition-colors"
                       >
                         <Minus size={20} strokeWidth={3} />
                       </button>
                       <span className="text-2xl font-bold w-8 text-center select-none">
-                        {formData.numberOfBags}
+                        {formData.bags}
                       </span>
                       <button
                         type="button"
                         aria-label="Add one bag"
-                        disabled={formData.numberOfBags >= 6}
-                        onClick={() => patch({ numberOfBags: Math.min(6, formData.numberOfBags + 1) })}
+                        disabled={formData.bags >= 6}
+                        onClick={() => patch({ bags: Math.min(6, formData.bags + 1) })}
                         className="w-12 h-12 rounded-lg hover:bg-[#78f7e8]/30 disabled:opacity-40 flex items-center justify-center text-[#006a62] transition-colors"
                       >
                         <Plus size={20} strokeWidth={3} />
@@ -239,8 +214,8 @@ const Booking: React.FC = () => {
                       id="pickupLocation"
                       type="text"
                       placeholder="e.g. Hilton Malta, St. Julian's"
-                      value={formData.pickupLocation}
-                      onChange={(e) => patch({ pickupLocation: e.target.value })}
+                      value={formData.pickup}
+                      onChange={(e) => patch({ pickup: e.target.value })}
                       className="w-full bg-white border border-[#78f7e8] rounded-xl pl-12 pr-5 py-4 font-medium text-[#181c1c] placeholder:text-[#a1b2c8] focus:outline-none focus:ring-2 focus:ring-[#006a62]/20 focus:border-[#006a62] transition-all"
                     />
                     <MapPin className="absolute left-4 top-1/2 -translate-y-1/2 text-[#006a62] pointer-events-none" size={18} />
@@ -256,8 +231,8 @@ const Booking: React.FC = () => {
                       id="dropoffLocation"
                       type="text"
                       placeholder="e.g. Malta International Airport"
-                      value={formData.dropoffLocation}
-                      onChange={(e) => patch({ dropoffLocation: e.target.value })}
+                      value={formData.dropoff}
+                      onChange={(e) => patch({ dropoff: e.target.value })}
                       className="w-full bg-white border border-[#78f7e8] rounded-xl pl-12 pr-5 py-4 font-medium text-[#181c1c] placeholder:text-[#a1b2c8] focus:outline-none focus:ring-2 focus:ring-[#006a62]/20 focus:border-[#006a62] transition-all"
                     />
                     <MapPin className="absolute left-4 top-1/2 -translate-y-1/2 text-[#ff9800] pointer-events-none" size={18} />
@@ -274,8 +249,8 @@ const Booking: React.FC = () => {
                         id="pickupDate"
                         type="date"
                         min={today}
-                        value={formData.pickupDate}
-                        onChange={(e) => patch({ pickupDate: e.target.value })}
+                        value={formData.date}
+                        onChange={(e) => patch({ date: e.target.value })}
                         className="w-full bg-white border border-[#78f7e8] rounded-xl pl-5 pr-12 py-4 font-medium text-[#181c1c] focus:outline-none focus:ring-2 focus:ring-[#006a62]/20 focus:border-[#006a62] transition-all appearance-none"
                       />
                       <Calendar className="absolute right-4 top-1/2 -translate-y-1/2 text-[#887361] pointer-events-none" size={18} />
@@ -290,8 +265,8 @@ const Booking: React.FC = () => {
                       <input
                         id="pickupTime"
                         type="time"
-                        value={formData.pickupTime}
-                        onChange={(e) => patch({ pickupTime: e.target.value })}
+                        value={formData.time}
+                        onChange={(e) => patch({ time: e.target.value })}
                         className="w-full bg-white border border-[#78f7e8] rounded-xl pl-5 pr-12 py-4 font-medium text-[#181c1c] focus:outline-none focus:ring-2 focus:ring-[#006a62]/20 focus:border-[#006a62] transition-all appearance-none"
                       />
                       <Clock className="absolute right-4 top-1/2 -translate-y-1/2 text-[#887361] pointer-events-none" size={18} />
@@ -325,55 +300,35 @@ const Booking: React.FC = () => {
 
                 {/* Order summary */}
                 <div className="bg-[#f7faf9] border border-[#e0e3e2] rounded-2xl p-5 sm:p-6 space-y-4">
-                  <SummaryRow
-                    icon={<Package size={15} className="text-[#4f6073]" />}
-                    label="Service"
-                    value={SERVICE_LABELS[formData.serviceType] ?? formData.serviceType}
-                  />
-                  <div className="h-px bg-[#e0e3e2]" />
+
                   <SummaryRow
                     icon={<MapPin size={15} className="text-[#006a62]" />}
                     label="From"
-                    value={formData.pickupLocation}
+                    value={formData.pickup}
                   />
                   <SummaryRow
                     icon={<MapPin size={15} className="text-[#ff9800]" />}
                     label="To"
-                    value={formData.dropoffLocation}
+                    value={formData.dropoff}
                   />
                   <div className="h-px bg-[#e0e3e2]" />
                   <SummaryRow
                     icon={<Calendar size={15} className="text-[#4f6073]" />}
                     label="Date & Time"
-                    value={`${formData.pickupDate} at ${formData.pickupTime}`}
+                    value={`${formData.date} at ${formData.time}`}
                   />
                   <div className="h-px bg-[#e0e3e2]" />
                   <div className="flex items-center justify-between">
                     <div>
                       <p className="text-[10px] font-bold uppercase tracking-widest text-[#4f6073]">Total</p>
                       <p className="text-[10px] text-[#a1b2c8] mt-0.5">
-                        {formData.numberOfBags} bag{formData.numberOfBags > 1 ? 's' : ''} × €{PRICE_PER_BAG}.00
+                        {formData.bags} bag{formData.bags > 1 ? 's' : ''} × €{PRICE_PER_BAG}.00
                       </p>
                     </div>
                     <span className="text-2xl font-extrabold text-[#006a62]">€{totalPrice.toFixed(2)}</span>
                   </div>
                 </div>
 
-                {/* Optional notes */}
-                <div className="space-y-3">
-                  <label htmlFor="notes" className="text-sm font-bold text-[#181c1c] block">
-                    Special Instructions{' '}
-                    <span className="text-[#a1b2c8] font-normal">(optional)</span>
-                  </label>
-                  <textarea
-                    id="notes"
-                    rows={3}
-                    value={formData.notes}
-                    onChange={(e) => patch({ notes: e.target.value })}
-                    placeholder="Fragile items, hotel floor number, special requirements..."
-                    className="w-full bg-white border border-[#78f7e8] rounded-xl px-5 py-4 font-medium text-[#181c1c] placeholder:text-[#a1b2c8] focus:outline-none focus:ring-2 focus:ring-[#006a62]/20 focus:border-[#006a62] transition-all resize-none"
-                  />
-                </div>
 
                 <div className="pt-6 border-t border-[#ebeeed] flex flex-col sm:flex-row gap-4">
                   <button
