@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { auth, db, handleFirestoreError, OperationType } from '../config/firebase';
+import { auth, db, handleFirestoreError, OperationType } from '../firebase'; // Asegúrate de que esta ruta apunte a tu firebase.ts unificado
 import {
   GoogleAuthProvider,
   signInWithPopup,
@@ -42,9 +42,9 @@ const Login: React.FC = () => {
   const navigate = useNavigate();
 
   const redirectByRole = (role: string) => {
-    if (role === 'admin')       navigate('/admin');
-    else if (role === 'keeper') navigate('/keeper');
-    else                        navigate('/dashboard');
+    if (role === 'admin')        navigate('/admin');
+    else if (role === 'keeper')  navigate('/keeper');
+    else                         navigate('/dashboard');
   };
 
   const switchMode = () => {
@@ -134,7 +134,8 @@ const Login: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-[#f7faf9] flex items-center justify-center px-4 sm:px-6 relative overflow-hidden">
+    <div className="min-h-screen bg-[#f7faf9] flex items-center justify-center px-4 sm:px-6 relative overflow-hidden font-['Plus_Jakarta_Sans']">
+      {/* Background Blobs */}
       <div className="absolute top-0 left-0 w-[32rem] h-[32rem] bg-[#006a62]/[0.06] blur-[120px] rounded-full -translate-x-1/2 -translate-y-1/2 pointer-events-none" />
       <div className="absolute bottom-0 right-0 w-[32rem] h-[32rem] bg-[#ff9800]/[0.06] blur-[120px] rounded-full translate-x-1/2 translate-y-1/2 pointer-events-none" />
 
@@ -142,7 +143,7 @@ const Login: React.FC = () => {
         initial={{ opacity: 0, y: 24 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.45, ease: [0.22, 1, 0.36, 1] }}
-        className="w-full max-w-md bg-white rounded-[2.5rem] shadow-[0_15px_40px_-10px_rgba(0,106,98,0.15)] px-6 py-10 sm:px-10 relative z-10"
+        className="w-full max-w-md bg-white rounded-[2.5rem] shadow-[0_15px_40px_-10px_rgba(0,106,98,0.15)] px-6 py-10 sm:px-10 relative z-10 border border-[#006a62]/5"
       >
         {/* Logo */}
         <div className="text-center mb-8">
@@ -172,7 +173,7 @@ const Login: React.FC = () => {
         </div>
 
         {/* Mode toggle */}
-        <div className="flex bg-[#f7faf9] rounded-2xl p-1 mb-7 gap-1">
+        <div className="flex bg-[#f7faf9] rounded-2xl p-1 mb-7 gap-1 border border-[#e0e3e2]/50">
           <button
             type="button"
             onClick={() => { if (!isLogin) switchMode(); }}
@@ -205,7 +206,7 @@ const Login: React.FC = () => {
               animate={{ opacity: 1, height: 'auto', marginBottom: 20 }}
               exit={{ opacity: 0, height: 0, marginBottom: 0 }}
               transition={{ duration: 0.2 }}
-              className="px-4 py-3 bg-red-50 border border-red-100 rounded-2xl text-sm text-red-600 font-medium text-center overflow-hidden"
+              className="px-4 py-3 bg-[#ffdad6] border border-[#ba1a1a]/20 rounded-2xl text-sm text-[#93000a] font-bold text-center overflow-hidden"
             >
               {error}
             </motion.div>
@@ -304,9 +305,10 @@ const Login: React.FC = () => {
           </div>
 
           <button
+            id="login-submit"
             type="submit"
             disabled={loading}
-            className="w-full h-14 bg-[#ff9800] text-white rounded-xl font-extrabold text-sm tracking-wide shadow-[0_10px_20px_-5px_rgba(255,152,0,0.4)] hover:bg-[#f08800] active:scale-95 transition-all duration-150 disabled:opacity-50 disabled:cursor-not-allowed disabled:active:scale-100"
+            className="w-full h-14 bg-[#ff9800] text-white rounded-xl font-extrabold text-sm tracking-widest uppercase shadow-[0_10px_20px_-5px_rgba(255,152,0,0.4)] hover:bg-[#e68a00] active:scale-95 transition-all duration-150 disabled:opacity-50 disabled:cursor-not-allowed disabled:active:scale-100 mt-2"
           >
             {loading ? (
               <span className="inline-flex items-center justify-center gap-2">
