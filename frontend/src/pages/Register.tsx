@@ -1,55 +1,77 @@
 import React, { useState } from 'react';
 import { auth, db, handleFirestoreError, OperationType } from '../config/firebase';
-import { GoogleAuthProvider, signInWithPopup, signInWithEmailAndPassword } from 'firebase/auth';
+import {
+  createUserWithEmailAndPassword,
+  updateProfile,
+  GoogleAuthProvider,
+  signInWithPopup,
+} from 'firebase/auth';
 import { doc, setDoc, getDoc, serverTimestamp } from 'firebase/firestore';
 import { useNavigate, Link } from 'react-router-dom';
 import { motion } from 'motion/react';
 
-const Login: React.FC = () => {
+const Register: React.FC = () => {
+  const [name, setName]           = useState('');
   const [email, setEmail]         = useState('');
   const [password, setPassword]   = useState('');
+  const [confirm, setConfirm]     = useState('');
   const [loading, setLoading]     = useState(false);
-  const [emailLoading, setEmailLoading] = useState(false);
+  const [googleLoading, setGoogleLoading] = useState(false);
   const [error, setError]         = useState<string | null>(null);
   const navigate = useNavigate();
 
-  const friendlyError = (msg: string) => {
-    if (msg.includes('user-not-found') || msg.includes('wrong-password') || msg.includes('invalid-credential'))
-      return 'Incorrect email or password. Please try again.';
-    if (msg.includes('too-many-requests')) return 'Too many attempts. Please try again later.';
-    if (msg.includes('invalid-email'))    return 'Please enter a valid email address.';
-    return 'Login failed. Please try again.';
+  /* ── helpers ─────────────────────────────────────────────── */
+  const createUserDoc = async (uid: string, displayName: string | null, emailAddr: string | null) => {
+    const userPath = `users/${uid}`;
+    try {
+      const userDoc = await getDoc(doc(db, 'users', uid));
+      if (!userDoc.exists()) {
+        await setDoc(doc(db, 'users', uid), {
+          id:        uid,
+          name:      displayName,
+          email:     emailAddr,
+          role:      'customer',
+          createdAt: serverTimestamp(),
+        });
+      }
+    } catch (firestoreErr) {
+      handleFirestoreError(firestoreErr, OperationType.CREATE, userPath);
+    }
   };
 
-  const handleEmailLogin = async (e: React.FormEvent) => {
+  const friendlyError = (msg: string) => {
+    if (msg.includes('email-already-in-use')) return 'That email is already registered. Try signing in instead.';
+    if (msg.includes('weak-password'))        return 'Password must be at least 6 characters.';
+    if (msg.includes('invalid-email'))        return 'Please enter a valid email address.';
+    return 'Something went wrong. Please try again.';
+  };
+
+  /* ── email/password register ──────────────────────────────── */
+  const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
-    setEmailLoading(true);
+
+    if (!name.trim())               return setError('Please enter your full name.');
+    if (password !== confirm)       return setError('Passwords do not match.');
+    if (password.length < 6)        return setError('Password must be at least 6 characters.');
+
+    setLoading(true);
     try {
-      const result  = await signInWithEmailAndPassword(auth, email, password);
-      const fbUser  = result.user;
-      let userRole  = 'customer';
-
-      try {
-        const userDoc = await getDoc(doc(db, 'users', fbUser.uid));
-        if (userDoc.exists()) userRole = userDoc.data().role ?? 'customer';
-      } catch (firestoreErr) {
-        handleFirestoreError(firestoreErr, OperationType.GET, `users/${fbUser.uid}`);
-      }
-
-      if (userRole === 'admin')       navigate('/admin');
-      else if (userRole === 'keeper') navigate('/keeper');
-      else                            navigate('/dashboard');
+      const result = await createUserWithEmailAndPassword(auth, email, password);
+      await updateProfile(result.user, { displayName: name.trim() });
+      await createUserDoc(result.user.uid, name.trim(), email);
+      navigate('/dashboard');
     } catch (err: unknown) {
       const raw = err instanceof Error ? err.message : '';
       setError(friendlyError(raw));
     } finally {
-      setEmailLoading(false);
+      setLoading(false);
     }
   };
 
-  const handleGoogleLogin = async () => {
-    setLoading(true);
+  /* ── Google register ──────────────────────────────────────── */
+  const handleGoogleRegister = async () => {
+    setGoogleLoading(true);
     setError(null);
     try {
       const provider = new GoogleAuthProvider();
@@ -79,17 +101,18 @@ const Login: React.FC = () => {
       if (userRole === 'admin')       navigate('/admin');
       else if (userRole === 'keeper') navigate('/keeper');
       else                            navigate('/dashboard');
-
     } catch (err: unknown) {
-      const raw = err instanceof Error ? err.message : 'Login failed. Please try again.';
+      const raw = err instanceof Error ? err.message : 'Sign-up failed. Please try again.';
       setError(raw.startsWith('{') ? 'Authentication failed. Please try again.' : raw);
     } finally {
-      setLoading(false);
+      setGoogleLoading(false);
     }
   };
 
+  /* ── UI ───────────────────────────────────────────────────── */
   return (
-    <div className="min-h-screen bg-surface flex items-center justify-center px-6 relative overflow-hidden">
+    <div className="min-h-screen bg-surface flex items-center justify-center px-6 py-12 relative overflow-hidden">
+      {/* decorative blobs */}
       <div className="absolute top-0 left-0 w-96 h-96 bg-primary/5 blur-[100px] rounded-full -translate-x-1/2 -translate-y-1/2" />
       <div className="absolute bottom-0 right-0 w-96 h-96 bg-secondary/5 blur-[100px] rounded-full translate-x-1/2 translate-y-1/2" />
 
@@ -98,31 +121,34 @@ const Login: React.FC = () => {
         animate={{ opacity: 1, y: 0 }}
         className="w-full max-w-md bg-white p-10 rounded-[2.5rem] shadow-soft border border-navy/5 relative z-10"
       >
+        {/* header */}
         <div className="text-center mb-10">
           <div className="inline-flex items-center gap-2 mb-6">
             <div className="w-8 h-8 bg-secondary rounded-lg flex items-center justify-center text-white font-bold text-lg">D</div>
             <span className="text-2xl font-bold tracking-tight text-navy">Droply</span>
           </div>
-          <h1 className="text-3xl font-bold display text-navy mb-2">Sign in to Droply</h1>
+          <h1 className="text-3xl font-bold display text-navy mb-2">Create an account</h1>
           <p className="text-sm text-navy/40 font-medium tracking-tight">
-            Don't have an account?{' '}
-            <Link to="/register" className="text-secondary hover:underline font-bold">Sign Up</Link>
+            Already have one?{' '}
+            <Link to="/login" className="text-secondary hover:underline font-bold">Sign in</Link>
           </p>
         </div>
 
-        {/* Error banner */}
+        {/* error banner */}
         {error && (
           <div className="mb-6 px-5 py-3 bg-red-50 border border-red-100 rounded-xl text-sm text-red-600 font-medium text-center">
             {error}
           </div>
         )}
 
+        {/* Google button */}
         <button
-          onClick={handleGoogleLogin}
-          disabled={loading}
+          type="button"
+          onClick={handleGoogleRegister}
+          disabled={googleLoading || loading}
           className="w-full h-14 flex items-center justify-center gap-3 bg-white border border-navy/10 rounded-xl font-bold text-navy hover:bg-navy/5 transition-all mb-8 shadow-sm disabled:opacity-60 disabled:cursor-not-allowed"
         >
-          {loading ? (
+          {googleLoading ? (
             <span className="flex items-center gap-2">
               <span className="w-4 h-4 border-2 border-navy/20 border-t-navy rounded-full animate-spin" />
               Connecting...
@@ -135,22 +161,41 @@ const Login: React.FC = () => {
           )}
         </button>
 
+        {/* divider */}
         <div className="relative mb-8">
           <div className="absolute inset-0 flex items-center">
             <div className="w-full border-t border-navy/5" />
           </div>
           <div className="relative flex justify-center text-[10px] uppercase font-bold tracking-widest">
-            <span className="bg-white px-4 text-navy/20">or sign in with email</span>
+            <span className="bg-white px-4 text-navy/20">or register with email</span>
           </div>
         </div>
 
-        <form className="space-y-6" onSubmit={handleEmailLogin}>
+        {/* form */}
+        <form className="space-y-5" onSubmit={handleRegister}>
+          {/* name */}
+          <div className="space-y-2">
+            <label className="text-xs font-bold text-navy/60 uppercase tracking-widest pl-1">
+              Full name
+            </label>
+            <input
+              id="register-name"
+              type="text"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="John Doe"
+              required
+              className="w-full h-14 px-6 bg-surface rounded-xl border border-navy/5 focus:border-secondary outline-none font-medium text-navy/80"
+            />
+          </div>
+
+          {/* email */}
           <div className="space-y-2">
             <label className="text-xs font-bold text-navy/60 uppercase tracking-widest pl-1">
               Email address
             </label>
             <input
-              id="login-email"
+              id="register-email"
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
@@ -159,15 +204,14 @@ const Login: React.FC = () => {
               className="w-full h-14 px-6 bg-surface rounded-xl border border-navy/5 focus:border-secondary outline-none font-medium text-navy/80"
             />
           </div>
+
+          {/* password */}
           <div className="space-y-2">
-            <div className="flex justify-between items-center pl-1">
-              <label className="text-xs font-bold text-navy/60 uppercase tracking-widest">Password</label>
-              <button type="button" className="text-[10px] font-bold text-secondary uppercase tracking-widest">
-                Forgot password?
-              </button>
-            </div>
+            <label className="text-xs font-bold text-navy/60 uppercase tracking-widest pl-1">
+              Password
+            </label>
             <input
-              id="login-password"
+              id="register-password"
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
@@ -177,30 +221,35 @@ const Login: React.FC = () => {
             />
           </div>
 
-          <div className="flex items-center gap-3 pl-1">
-            <input
-              type="checkbox"
-              id="remember"
-              className="w-4 h-4 rounded border-navy/10 text-secondary focus:ring-secondary"
-            />
-            <label htmlFor="remember" className="text-xs font-bold text-navy/40 uppercase tracking-widest cursor-pointer">
-              Remember me
+          {/* confirm password */}
+          <div className="space-y-2">
+            <label className="text-xs font-bold text-navy/60 uppercase tracking-widest pl-1">
+              Confirm password
             </label>
+            <input
+              id="register-confirm"
+              type="password"
+              value={confirm}
+              onChange={(e) => setConfirm(e.target.value)}
+              placeholder="••••••••"
+              required
+              className="w-full h-14 px-6 bg-surface rounded-xl border border-navy/5 focus:border-secondary outline-none font-medium text-navy/80"
+            />
           </div>
 
           <button
-            id="login-submit"
+            id="register-submit"
             type="submit"
-            disabled={emailLoading || loading}
-            className="w-full h-14 bg-primary text-white rounded-xl font-bold text-sm tracking-widest uppercase hover:bg-primary-deep transition-all shadow-lg shadow-primary/20 mt-4 disabled:opacity-60 disabled:cursor-not-allowed"
+            disabled={loading || googleLoading}
+            className="w-full h-14 bg-primary text-white rounded-xl font-bold text-sm tracking-widest uppercase hover:bg-primary-deep transition-all shadow-lg shadow-primary/20 mt-2 disabled:opacity-60 disabled:cursor-not-allowed"
           >
-            {emailLoading ? (
+            {loading ? (
               <span className="flex items-center justify-center gap-2">
                 <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                Signing in...
+                Creating account...
               </span>
             ) : (
-              'Sign In'
+              'Create Account'
             )}
           </button>
         </form>
@@ -213,4 +262,4 @@ const Login: React.FC = () => {
   );
 };
 
-export default Login;
+export default Register;
