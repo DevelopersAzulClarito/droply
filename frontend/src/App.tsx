@@ -5,6 +5,7 @@ import Layout from './components/layout/Layout';
 import Home from './pages/Home';
 import Tracking from './pages/Tracking';
 import Login from './pages/Login';
+import Register from './pages/Register';
 import ErrorBoundary from './components/ErrorBoundary';
 
 const Booking         = lazy(() => import('./pages/Booking'));
@@ -43,6 +44,7 @@ export default function App() {
               <Route path="/book"                element={<Layout><Booking /></Layout>} />
               <Route path="/track/:bookingId?"   element={<Layout><Tracking /></Layout>} />
               <Route path="/login"               element={<Layout><Login /></Layout>} />
+              <Route path="/register"            element={<Layout><Register /></Layout>} />
 
               {/* ── Customer ──────────────────────────────────────────────── */}
               <Route path="/dashboard" element={
@@ -54,14 +56,14 @@ export default function App() {
               {/* ── Keeper ────────────────────────────────────────────────── */}
               <Route path="/keeper" element={
                 <ProtectedRoute allowedRoles={['keeper']}>
-                  <Layout><KeeperDashboard /></Layout>
+                  <KeeperDashboard />
                 </ProtectedRoute>
               } />
 
               {/* ── Admin ─────────────────────────────────────────────────── */}
               <Route path="/admin" element={
                 <ProtectedRoute allowedRoles={['admin']}>
-                  <Layout><AdminDashboard /></Layout>
+                  <AdminDashboard />
                 </ProtectedRoute>
               } />
 

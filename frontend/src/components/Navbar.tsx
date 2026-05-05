@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { signOut } from 'firebase/auth';
-import { auth } from '../firebase'; // Ajusta esta ruta si es necesario (ej. '@/config/firebase')
+import { auth } from '../config/firebase';
 import { useAuth } from '../hooks/useAuth';
 import { Menu, X, LogOut } from 'lucide-react';
 
@@ -27,7 +27,6 @@ const Navbar: React.FC = () => {
     role === 'keeper' ? 'Keeper Panel'  :
                         'Dashboard';
 
-  // Añadimos los enlaces del diseño original
   const navLinks = [
     { to: '/book',  label: 'Book Now'      },
     { to: '/track', label: 'Track My Bags' },
@@ -81,7 +80,7 @@ const Navbar: React.FC = () => {
               </Link>
               <button
                 onClick={handleSignOut}
-                title="Sign Out"
+                aria-label="Sign out"
                 className="p-2.5 text-slate-400 hover:text-[#ba1a1a] transition-colors rounded-full hover:bg-slate-100"
               >
                 <LogOut size={18} />
